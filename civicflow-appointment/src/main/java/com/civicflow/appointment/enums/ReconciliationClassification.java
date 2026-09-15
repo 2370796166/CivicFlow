@@ -1,0 +1,11 @@
+package com.civicflow.appointment.enums;
+
+public enum ReconciliationClassification {
+    CONSISTENT,
+    TRANSIENT_PENDING,
+    DB_ORDER_REDIS_ACTIVE_MISSING,
+    RELEASE_RECORDED_STOCK_NOT_RETURNED,
+    REDIS_STOCK_MISMATCH,
+    CONFIG_VERSION_GAP,
+    EVIDENCE_MISSING
+}

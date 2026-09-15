@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: civicflow-appointment
+  profiles:
+    default: dev
+
+mybatis-plus:
+  configuration:
+    default-enum-type-handler: org.apache.ibatis.type.EnumTypeHandler
+
+server:
+  port: ${CIVICFLOW_APPOINTMENT_PORT:8083}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
