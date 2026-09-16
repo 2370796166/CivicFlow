@@ -83,6 +83,12 @@
 - `INDEX idx_slot_release(status,release_at,id)` 用于分页预热。
 - `config_version` 每次影响 Redis 的配置变更单调递增；同步只接受连续版本。
 
+### 管理幂等与审计（V2）
+
+- `resource_admin_idempotency`：`id, actor_user_id, operation, idempotency_key, payload_hash BINARY(32), resource_id NULL, created_at, updated_at`；`UNIQUE(actor_user_id,operation,idempotency_key)`。payloadHash 使用部署 secret 的 HMAC-SHA-256 计算，避免联系电话等低熵字段形成可离线枚举的裸摘要；表中不保存请求/响应明文。
+- `resource_admin_audit`：`id, actor_user_id, resource_type, resource_id, action, request_id, before_json, after_json, occurred_at, created_at, updated_at`。before/after 只记录 code/name/status/version/outletId/itemIds 等白名单配置，不记录联系电话、联系电话密文/密钥、JWT 或完整请求体；审计事实不可更新或删除。
+- 网点、事项、窗口的更新、状态变更、逻辑删除均以 `id + version + deleted=0` 条件更新；状态 SQL 额外限制当前状态属于 `ENABLED|DISABLED`。窗口事项关系以窗口 `version` 作为聚合并发控制，替换时旧关系写 `deleted=id` 后再插入新关系。
+
 ## 4. `civicflow_appointment`
 
 ### `appointment_order`

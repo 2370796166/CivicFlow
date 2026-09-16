@@ -9,7 +9,7 @@
 - [x] 阶段 2：Docker Compose 本地基础设施
 - [x] 阶段 3：Flyway DDL、枚举与错误码基线
 - [x] 阶段 4：认证与 RBAC
-- [ ] 阶段 5：资源主数据管理
+- [x] 阶段 5：资源主数据管理
 - [ ] 阶段 6：时间段与号源配置
 - [ ] 阶段 7：网关路由、双层鉴权与限流
 - [ ] 阶段 8：号源预热、Redis Lua 预占/补偿
@@ -21,6 +21,31 @@
 - [ ] 阶段 14：Vue 3 工程与三角色页面
 - [ ] 阶段 15：跨服务 E2E 联调
 - [ ] 阶段 16：并发、可靠性、安全与发布收口
+
+## 阶段 5 完成内容
+
+- 完成 `civicflow-resource` 的 controller -> service -> mapper 首版闭环：ADMIN 网点/事项/窗口分页、详情、创建、完整更新、启停、逻辑删除及窗口事项集合替换；USER 可用网点分页/详情与网点可办理事项分页；STAFF 仅能从已验证 JWT `sub` 查看本人获授权的启用网点、窗口与事项，不存在 STAFF 配置写入口。
+- Controller 只承担 Bean Validation、JWT 主体适配、方法级 `@PreAuthorize` 与统一响应；资源校验、引用检查、事务、幂等、审计、逻辑删除和 version CAS 均位于 Service；复杂分页、授权 join、未来号源检查和条件更新位于 Mapper XML，用户事项与 STAFF scope 查询避免 N+1。
+- resource 增加 Spring Security Resource Server 双层防护，使用 JWKS 本地验签并限制 RS256、issuer、audience、nbf/exp，`roles` 映射方法级 RBAC。新增依赖均由现有 Spring Boot BOM 管理；Spring Security starter/security-test 为 Spring 官方维护、Apache-2.0 许可，未引入独立版本号。
+- 管理端所有写接口强制最长 128 字符 `Idempotency-Key`，追加 Flyway `V2__create_resource_admin_control.sql`，以 `(actor,operation,key)` 唯一绑定独立 secret 的 HMAC-SHA-256 载荷摘要和资源 ID；同键同载荷复用结果，同键异载荷返回 409。资源变更在同一事务写白名单 before/after 审计，不记录联系电话、密文、摘要、JWT 或完整请求体。
+- 网点联系电话使用 AES-256-GCM、随机 nonce、keyVersion AAD 加密，生产/开发缺 key 启动失败，接口仅返回末四位。网点/事项编码及同网点窗口编码依赖数据库唯一约束兜并发，统一映射 `RESOURCE_409_CODE_EXISTS`。
+- 停用按 Asia/Shanghai 当天检查 `SCHEDULED|OPEN|SUSPENDED` 当前/未来号源；窗口通过当前窗口事项关系映射检查。删除额外拒绝活动窗口、窗口事项关系和 STAFF scope 引用，并统一使用 `deleted=id` 逻辑删除。更新/状态/删除均显式 `id + version + deleted=0` CAS；窗口事项集合以窗口 version 控制并发。
+- 同步更新 API、DATABASE、DOMAIN、SECURITY 契约；新增 H2 MySQL-mode 隔离 schema 和集成测试，覆盖 RBAC、参数/幂等键、同键异载荷、编码唯一冲突、版本冲突、公开可见性、STAFF scope、未来号源阻止停用、审计，以及两个线程以相同 version 更新时仅一个成功。
+
+## 阶段 5 验证
+
+- `mvn -pl civicflow-resource -am test`：成功；common 2 个、resource 7 个测试，共 9 个，0 失败、0 错误、0 跳过。
+- `mvn verify`：成功；全仓 7 个 reactor 模块全部通过，共 30 个测试，0 失败、0 错误、0 跳过；Spotless、编译、测试、JAR/repackage 均成功。
+- `docker compose --env-file deploy/compose/.env.example -f deploy/compose/compose.yaml config --quiet`：成功。
+- `docker compose --env-file deploy/compose/.env.example -f deploy/compose/compose.yaml ps`：失败；Docker Desktop Linux engine named pipe 权限/连接不可用，因此未执行真实 MySQL 8 Flyway 冒烟。
+- 完成路径、状态、表名与错误码搜索及 `git diff --check`；未发现契约漂移或空白错误，仅有 Windows 工作树 LF/CRLF 转换提示。
+
+## 阶段 5 已知风险/后续
+
+- 本机 Docker engine 仍不可用，`civicflow_resource` 的 MySQL 8 `V1+V2` 空 schema Flyway、JSON 列、`INSERT IGNORE` 和唯一冲突语义尚未真实冒烟；当前 H2 只验证事务/API/映射行为，不能替代 MySQL 8。
+- 阶段 6 创建/变更号源时必须沿用并明确父资源锁顺序，使“检查未来号源后停用”与并发新建号源串行化；不得退化为无锁先查再写。当前阶段尚无 slot 写 API。
+- STAFF scope 本轮只实现按既有授权关系读取；授权关系的管理员维护入口尚未列入提示词 5，未擅自扩展。网关 header 清洗、路由和限流仍在阶段 7。
+- 下一步进入阶段 6，仅实现时间段与号源配置、重叠防护和批量边界，不提前实现 Redis 预热或预约流程。
 
 ## 阶段 4 完成内容
 

@@ -32,6 +32,12 @@ auth 首版落地细节：
 - BCrypt strength 默认 12，可按部署压测调整；仍强制 BCrypt 的 72-byte 上限。错误密码、未知账号、禁用账号和无角色账号共用同一 401 code/message，并对未知账号执行一次 dummy BCrypt 校验，降低账号枚举与明显计时差异。
 - 管理员写操作的幂等摘要只包含规范化载荷摘要；密码先经过带独立用途前缀的 HMAC 再参与摘要，不形成可离线枚举的裸 SHA-256。表中不保存明文密码/手机号；refresh token、access token 和私钥不进入审计记录或响应日志。
 
+resource 首版落地细节：
+
+- resource 服务不信任浏览器 `X-User-*` 头，使用 auth JWKS 在本地仅按 RS256 校验 access JWT 的签名、issuer、audience、nbf/exp，并把 `roles` 映射为方法级 RBAC；STAFF scope 查询的 staffUserId 只取已验证 JWT `sub`。
+- 联系电话使用独立 256-bit AES-GCM key、随机 96-bit nonce、128-bit tag 与 keyVersion AAD；数据库不建联系电话检索哈希，API 只返回末四位。生产/开发缺少加密 key 或资源幂等 HMAC key 时启动失败，只有 test profile 可生成进程内临时 key。
+- 所有 ADMIN 写操作强制幂等键、version CAS，并在同一本地事务写资源审计。幂等 payload 使用独立 256-bit HMAC key，审计 before/after 不含联系电话、密文、摘要、JWT 或完整请求体。
+
 ## 3. RBAC 与越权防护
 
 | 入口 | 必须校验 |

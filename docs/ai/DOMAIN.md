@@ -17,6 +17,8 @@
 | resource | WindowItemRel | windowId, itemId | 窗口可办理事项 |
 | resource | StaffWindowScope | staffUserId, outletId, windowId | `windowId=0` 表示整个网点授权 |
 | resource | ResourceSlot | id, outletId, itemId, serviceDate, startTime, endTime, totalQuota, releaseAt, checkInStart, checkInEnd, status, configVersion | 配置事实；时间窗口属 Asia/Shanghai |
+| resource | ResourceAdminIdempotency | actorUserId, operation, idempotencyKey, payloadHash, resourceId | 管理写操作幂等绑定；payloadHash 使用部署 HMAC secret |
+| resource | ResourceAdminAudit | actorUserId, resourceType/id, action, requestId, before/after | 资源配置变更的不可变白名单审计事实 |
 | appointment | AppointmentOrder | id, reservationId, userId, slot/resource 快照, status, confirmDeadline, confirmedAt, cancelledAt, qrNonceHash/qrExpiresAt, version | 消费事实；保留名称快照供历史查询 |
 | appointment | ActiveBookingGuard | userId, itemId, serviceDate, reservationId, appointmentId | 活跃预约唯一占位 |
 | appointment | StockReleaseRecord | reservationId, slotId, reason, status, attempts | 一次性库存释放事实/任务 |
@@ -140,6 +142,8 @@ WAITING --叫下一号(锁定领取)--> CALLED --开始办理--> SERVING --完�
 - DRAFT：未排期，不预热；SCHEDULED：可预热但 releaseAt 前 Lua 拒绝；OPEN：可抢；SUSPENDED：暂停售；CLOSED：服务结束。
 - Redis 初始 `remaining=totalQuota`，附 `configVersion`。已放号后只能应用可证明的增量：`remaining += newTotal-oldTotal`，且结果不得小于 0；版本不连续则暂停并对账。
 - 预占成功即计入消费；发布失败、预约取消/过期才释放。确认、签到、办理、完成不再次扣减。
+
+资源主数据规则：网点、事项、窗口创建后默认为 `ENABLED`；停用前以 Asia/Shanghai 当天为边界检查 `SCHEDULED|OPEN|SUSPENDED` 的当前/未来号源，窗口通过当前 `window_item_rel` 映射到网点/事项号源。逻辑删除还要求没有活动窗口/绑定/scope 等配置引用。所有变更以 version CAS 裁决；窗口事项集合是窗口聚合的一部分，替换绑定会增加窗口 version。
 
 ## 6. 时间与幂等语义
 

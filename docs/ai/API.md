@@ -58,6 +58,14 @@
 | PATCH `/api/v1/admin/slots/{id}/status` | ADMIN | 必需 | `{status,version}` -> slot VO |
 | PATCH `/api/v1/admin/slots/{id}/quota` | ADMIN | 必需 | `{totalQuota,configVersion}` -> slot VO；产生配置变更事件/同步任务 |
 
+资源基础管理实现约定：
+
+- 网点、事项、窗口列表均支持 `keyword/status/page/size`，窗口额外支持 `outletId`；默认 `page=1,size=20`，`size` 上限 100。创建默认 `ENABLED`，编码在写入前转大写。
+- 网点写 DTO 包含 `code,name,address,longitude?,latitude?,contactPhone?`；联系电话只以 AES-256-GCM 密文持久化，所有角色的 VO 仅返回末四位脱敏值。事项写 DTO 包含 `code,name,description?,defaultDurationMinutes`；窗口写 DTO 包含 `outletId,code,name`。
+- PUT、状态 PATCH 与窗口事项替换携带当前 `version`；DELETE 使用 `?version=`。所有管理写操作必须带最长 128 字符 `Idempotency-Key`，绑定 `actor + operation + HMAC(canonical payload)`；同键同载荷复用结果，同键异载荷返回 `COMMON_409_IDEMPOTENCY_CONFLICT`。
+- 停用网点/事项/窗口前检查当天及未来的 `SCHEDULED|OPEN|SUSPENDED` 号源；窗口按当前网点及事项绑定判断。存在未来号源返回 `RESOURCE_409_IN_USE`。删除还检查活动窗口、窗口事项关系和 STAFF scope，只做逻辑删除。
+- `GET /api/v1/staff/scopes` 从 JWT `sub` 取 staffUserId，仅返回该人员获授权且当前启用的网点、窗口与事项；不存在修改资源配置的 STAFF 路由。用户查询只返回启用网点以及至少被一个启用窗口绑定的启用事项。
+
 ## 4. 预约（appointment）
 
 | 方法与路径 | 角色 | 幂等 | 主要请求 -> 响应 |
@@ -124,6 +132,7 @@ JWKS 同时发布活动 key 和仍处于验证窗口的历史公钥，不包含�
 | 404 | COMMON_404_NOT_FOUND | 资源不存在或为防枚举而隐藏 |
 | 409 | COMMON_409_IDEMPOTENCY_CONFLICT | 同幂等键载荷不同 |
 | 409 | RESOURCE_409_VERSION_CONFLICT | 配置乐观锁冲突，刷新后重试 |
+| 409 | RESOURCE_409_CODE_EXISTS | 网点/事项编码或同网点窗口编码已存在 |
 | 409 | RESOURCE_409_SLOT_OVERLAP | 时段重复/重叠 |
 | 409 | RESOURCE_409_IN_USE | 有未来号源/业务引用，不可停用删除 |
 | 409 | APPT_409_DUP_ACTIVE | 同用户同事项同日已有有效预约 |

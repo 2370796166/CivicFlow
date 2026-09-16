@@ -3,6 +3,8 @@ package com.civicflow.resource;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.civicflow.resource.entity.ResourceAdminAuditEntity;
+import com.civicflow.resource.entity.ResourceAdminIdempotencyEntity;
 import com.civicflow.resource.entity.ResourceSlotEntity;
 import com.civicflow.resource.entity.ServiceItemEntity;
 import com.civicflow.resource.entity.ServiceOutletEntity;
@@ -22,6 +24,7 @@ import org.junit.jupiter.api.Test;
 
 class ResourceDatabaseContractTest {
     private static final String DDL = migration("V1__create_resource_schema.sql");
+    private static final String ADMIN_DDL = migration("V2__create_resource_admin_control.sql");
 
     @Test
     void entitiesMirrorAllResourceTables() {
@@ -31,6 +34,9 @@ class ResourceDatabaseContractTest {
         assertEntityMatchesTable(WindowItemRelEntity.class, "window_item_rel");
         assertEntityMatchesTable(StaffWindowScopeEntity.class, "staff_window_scope");
         assertEntityMatchesTable(ResourceSlotEntity.class, "resource_slot");
+        assertEntityMatchesTable(
+                ResourceAdminIdempotencyEntity.class, "resource_admin_idempotency", ADMIN_DDL);
+        assertEntityMatchesTable(ResourceAdminAuditEntity.class, "resource_admin_audit", ADMIN_DDL);
     }
 
     @Test
@@ -45,25 +51,33 @@ class ResourceDatabaseContractTest {
     @Test
     void exposesConfirmedResourceErrorCodes() {
         assertEquals("RESOURCE_409_VERSION_CONFLICT", ResourceErrorCode.VERSION_CONFLICT.code());
+        assertEquals("RESOURCE_409_CODE_EXISTS", ResourceErrorCode.CODE_EXISTS.code());
         assertEquals("RESOURCE_409_SLOT_OVERLAP", ResourceErrorCode.SLOT_OVERLAP.code());
         assertEquals("RESOURCE_409_IN_USE", ResourceErrorCode.IN_USE.code());
+        assertTrue(ADMIN_DDL.contains("UNIQUE KEY uk_resource_admin_idempotency"));
+        assertTrue(ADMIN_DDL.contains("CREATE TABLE resource_admin_audit"));
     }
 
     private static void assertEntityMatchesTable(Class<?> entityType, String table) {
-        assertEquals(columnsFor(table), fieldsOf(entityType), table);
+        assertEntityMatchesTable(entityType, table, DDL);
     }
 
-    private static Set<String> columnsFor(String table) {
+    private static void assertEntityMatchesTable(
+            Class<?> entityType, String table, String migration) {
+        assertEquals(columnsFor(table, migration), fieldsOf(entityType), table);
+    }
+
+    private static Set<String> columnsFor(String table, String migration) {
         Matcher tableMatcher =
                 Pattern.compile(
                                 "(?ms)CREATE TABLE "
                                         + Pattern.quote(table)
                                         + " \\((.*?)^\\) ENGINE")
-                        .matcher(DDL);
+                        .matcher(migration);
         assertTrue(tableMatcher.find(), table);
         Matcher columnMatcher =
                 Pattern.compile(
-                                "(?m)^    ([a-z][a-z0-9_]*) (?:BIGINT|INT|SMALLINT|VARCHAR|VARBINARY|DECIMAL|DATE|TIME|DATETIME)")
+                                "(?m)^    ([a-z][a-z0-9_]*) (?:BIGINT|INT|SMALLINT|VARCHAR|VARBINARY|BINARY|JSON|DECIMAL|DATE|TIME|DATETIME)")
                         .matcher(tableMatcher.group(1));
         return columnMatcher.results().map(result -> result.group(1)).collect(Collectors.toSet());
     }

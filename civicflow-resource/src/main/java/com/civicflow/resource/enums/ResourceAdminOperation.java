@@ -1,0 +1,17 @@
+package com.civicflow.resource.enums;
+
+public enum ResourceAdminOperation {
+    CREATE_OUTLET,
+    UPDATE_OUTLET,
+    CHANGE_OUTLET_STATUS,
+    DELETE_OUTLET,
+    CREATE_ITEM,
+    UPDATE_ITEM,
+    CHANGE_ITEM_STATUS,
+    DELETE_ITEM,
+    CREATE_WINDOW,
+    UPDATE_WINDOW,
+    CHANGE_WINDOW_STATUS,
+    DELETE_WINDOW,
+    REPLACE_WINDOW_ITEMS
+}

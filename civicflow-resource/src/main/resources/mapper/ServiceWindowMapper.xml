@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.civicflow.resource.mapper.ServiceWindowMapper">
+    <sql id="columns">id, outlet_id, code, name, status, version, created_at, updated_at, deleted</sql>
+    <sql id="adminWhere">
+        deleted = 0
+        <if test="outletId != null">AND outlet_id = #{outletId}</if>
+        <if test="status != null">AND status = #{status}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (code LIKE CONCAT('%', #{keyword}, '%') OR name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+    <select id="selectActiveById" resultType="com.civicflow.resource.entity.ServiceWindowEntity">
+        SELECT <include refid="columns"/> FROM service_window WHERE id = #{id} AND deleted = 0
+    </select>
+    <select id="selectByIdForUpdate" resultType="com.civicflow.resource.entity.ServiceWindowEntity">
+        SELECT <include refid="columns"/> FROM service_window WHERE id = #{id} AND deleted = 0 FOR UPDATE
+    </select>
+    <select id="selectAdminPage" resultType="com.civicflow.resource.entity.ServiceWindowEntity">
+        SELECT <include refid="columns"/> FROM service_window WHERE <include refid="adminWhere"/>
+        ORDER BY id DESC LIMIT #{size} OFFSET #{offset}
+    </select>
+    <select id="countAdminPage" resultType="long">
+        SELECT COUNT(*) FROM service_window WHERE <include refid="adminWhere"/>
+    </select>
+    <select id="countActiveByOutlet" resultType="long">
+        SELECT COUNT(*) FROM service_window WHERE outlet_id = #{outletId} AND deleted = 0
+    </select>
+    <update id="updateDetails">
+        UPDATE service_window SET outlet_id = #{outletId}, code = #{code}, name = #{name},
+            version = version + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND deleted = 0 AND version = #{expectedVersion}
+    </update>
+    <update id="updateStatus">
+        UPDATE service_window SET status = #{status}, version = version + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND deleted = 0 AND version = #{expectedVersion}
+          AND status IN ('ENABLED','DISABLED')
+    </update>
+    <update id="incrementVersion">
+        UPDATE service_window SET version = version + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND deleted = 0 AND version = #{expectedVersion}
+    </update>
+    <update id="logicallyDelete">
+        UPDATE service_window SET deleted = id, version = version + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND deleted = 0 AND version = #{expectedVersion}
+    </update>
+</mapper>

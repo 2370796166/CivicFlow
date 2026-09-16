@@ -11,9 +11,19 @@ spring:
     password:
   flyway:
     enabled: false
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-h2.sql
+
+civicflow:
+  resource:
+    jwt:
+      allow-test-decoder: true
+    contact-protection:
+      allow-ephemeral-test-key: true
 
 management:
   health:
     nacos:
       enabled: false
-

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.civicflow.resource.mapper.ResourceSlotMapper">
+    <sql id="futureWhere">
+        deleted = 0 AND service_date &gt;= #{today} AND status IN ('SCHEDULED','OPEN','SUSPENDED')
+    </sql>
+    <select id="countFutureByOutlet" resultType="long">
+        SELECT COUNT(*) FROM resource_slot WHERE outlet_id = #{outletId} AND <include refid="futureWhere"/>
+    </select>
+    <select id="countFutureByItem" resultType="long">
+        SELECT COUNT(*) FROM resource_slot WHERE item_id = #{itemId} AND <include refid="futureWhere"/>
+    </select>
+    <select id="countFutureByWindow" resultType="long">
+        SELECT COUNT(DISTINCT s.id) FROM resource_slot s
+        JOIN service_window w ON w.id = #{windowId} AND w.deleted = 0 AND w.outlet_id = s.outlet_id
+        JOIN window_item_rel r ON r.window_id = w.id AND r.item_id = s.item_id AND r.deleted = 0
+        WHERE s.deleted = 0 AND s.service_date &gt;= #{today}
+          AND s.status IN ('SCHEDULED','OPEN','SUSPENDED')
+    </select>
+</mapper>

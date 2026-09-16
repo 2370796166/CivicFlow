@@ -19,3 +19,14 @@ management:
   endpoint:
     health:
       show-details: never
+
+civicflow:
+  resource:
+    jwt:
+      issuer: ${CIVICFLOW_JWT_ISSUER:https://auth.civicflow.local}
+      audience: ${CIVICFLOW_JWT_AUDIENCE:civicflow-api}
+      jwk-set-uri: ${CIVICFLOW_JWKS_URI:http://civicflow-auth:8081/.well-known/jwks.json}
+    contact-protection:
+      key-version: ${CIVICFLOW_CONTACT_KEY_VERSION:1}
+      encryption-key: ${CIVICFLOW_CONTACT_ENCRYPTION_KEY:}
+      idempotency-hmac-key: ${CIVICFLOW_RESOURCE_IDEMPOTENCY_HMAC_KEY:}

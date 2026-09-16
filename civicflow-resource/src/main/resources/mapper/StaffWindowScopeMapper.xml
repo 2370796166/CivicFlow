@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.civicflow.resource.mapper.StaffWindowScopeMapper">
+    <select id="selectAuthorizedRows" resultType="com.civicflow.resource.dto.response.StaffScopeRow">
+        SELECT DISTINCT o.id outlet_id, o.code outlet_code, o.name outlet_name,
+               w.id window_id, w.code window_code, w.name window_name,
+               i.id item_id, i.code item_code, i.name item_name
+        FROM staff_window_scope s
+        JOIN service_outlet o ON o.id = s.outlet_id AND o.deleted = 0 AND o.status = 'ENABLED'
+        JOIN service_window w ON w.outlet_id = s.outlet_id AND w.deleted = 0 AND w.status = 'ENABLED'
+             AND (s.window_id = 0 OR s.window_id = w.id)
+        LEFT JOIN window_item_rel r ON r.window_id = w.id AND r.deleted = 0
+        LEFT JOIN service_item i ON i.id = r.item_id AND i.deleted = 0 AND i.status = 'ENABLED'
+        WHERE s.staff_user_id = #{staffUserId} AND s.deleted = 0
+        ORDER BY o.id, w.id, i.id
+    </select>
+    <select id="countByOutlet" resultType="long">
+        SELECT COUNT(*) FROM staff_window_scope WHERE outlet_id = #{outletId} AND deleted = 0
+    </select>
+    <select id="countByWindow" resultType="long">
+        SELECT COUNT(*) FROM staff_window_scope WHERE window_id = #{windowId} AND deleted = 0
+    </select>
+</mapper>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.civicflow.resource.mapper.ResourceAdminIdempotencyMapper">
+    <insert id="insertIgnore">
+        INSERT IGNORE INTO resource_admin_idempotency
+            (id, actor_user_id, operation, idempotency_key, payload_hash, resource_id, created_at, updated_at)
+        VALUES (#{id}, #{actorUserId}, #{operation}, #{idempotencyKey}, #{payloadHash},
+                #{resourceId}, #{createdAt}, #{updatedAt})
+    </insert>
+    <select id="selectForUpdate" resultType="com.civicflow.resource.entity.ResourceAdminIdempotencyEntity">
+        SELECT id, actor_user_id, operation, idempotency_key, payload_hash, resource_id, created_at, updated_at
+        FROM resource_admin_idempotency
+        WHERE actor_user_id = #{actorUserId} AND operation = #{operation}
+          AND idempotency_key = #{idempotencyKey} FOR UPDATE
+    </select>
+    <update id="bindResource">
+        UPDATE resource_admin_idempotency SET resource_id = #{resourceId}, updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND resource_id IS NULL
+    </update>
+</mapper>

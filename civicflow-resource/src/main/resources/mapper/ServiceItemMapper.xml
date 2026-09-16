@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.civicflow.resource.mapper.ServiceItemMapper">
+    <sql id="columns">id, code, name, description, default_duration_minutes, status, version,
+        created_at, updated_at, deleted</sql>
+    <sql id="adminWhere">
+        deleted = 0
+        <if test="status != null">AND status = #{status}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (code LIKE CONCAT('%', #{keyword}, '%') OR name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+    <select id="selectActiveById" resultType="com.civicflow.resource.entity.ServiceItemEntity">
+        SELECT <include refid="columns"/> FROM service_item WHERE id = #{id} AND deleted = 0
+    </select>
+    <select id="selectByIdForUpdate" resultType="com.civicflow.resource.entity.ServiceItemEntity">
+        SELECT <include refid="columns"/> FROM service_item WHERE id = #{id} AND deleted = 0 FOR UPDATE
+    </select>
+    <select id="selectAdminPage" resultType="com.civicflow.resource.entity.ServiceItemEntity">
+        SELECT <include refid="columns"/> FROM service_item WHERE <include refid="adminWhere"/>
+        ORDER BY id DESC LIMIT #{size} OFFSET #{offset}
+    </select>
+    <select id="countAdminPage" resultType="long">
+        SELECT COUNT(*) FROM service_item WHERE <include refid="adminWhere"/>
+    </select>
+    <select id="selectEnabledByOutletPage" resultType="com.civicflow.resource.entity.ServiceItemEntity">
+        SELECT DISTINCT i.id, i.code, i.name, i.description, i.default_duration_minutes, i.status,
+               i.version, i.created_at, i.updated_at, i.deleted
+        FROM service_item i JOIN window_item_rel r ON r.item_id = i.id AND r.deleted = 0
+        JOIN service_window w ON w.id = r.window_id AND w.deleted = 0 AND w.status = 'ENABLED'
+        WHERE w.outlet_id = #{outletId} AND i.deleted = 0 AND i.status = 'ENABLED'
+        ORDER BY i.id DESC LIMIT #{size} OFFSET #{offset}
+    </select>
+    <select id="countEnabledByOutlet" resultType="long">
+        SELECT COUNT(DISTINCT i.id) FROM service_item i
+        JOIN window_item_rel r ON r.item_id = i.id AND r.deleted = 0
+        JOIN service_window w ON w.id = r.window_id AND w.deleted = 0 AND w.status = 'ENABLED'
+        WHERE w.outlet_id = #{outletId} AND i.deleted = 0 AND i.status = 'ENABLED'
+    </select>
+    <select id="selectEnabledByIds" resultType="com.civicflow.resource.entity.ServiceItemEntity">
+        SELECT <include refid="columns"/> FROM service_item WHERE deleted = 0 AND status = 'ENABLED'
+        AND id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+    <update id="updateDetails">
+        UPDATE service_item SET code = #{code}, name = #{name}, description = #{description},
+            default_duration_minutes = #{defaultDurationMinutes}, version = version + 1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND deleted = 0 AND version = #{expectedVersion}
+    </update>
+    <update id="updateStatus">
+        UPDATE service_item SET status = #{status}, version = version + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND deleted = 0 AND version = #{expectedVersion}
+          AND status IN ('ENABLED','DISABLED')
+    </update>
+    <update id="logicallyDelete">
+        UPDATE service_item SET deleted = id, version = version + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND deleted = 0 AND version = #{expectedVersion}
+    </update>
+</mapper>
