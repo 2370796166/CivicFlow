@@ -8,7 +8,7 @@
 - 状态使用可读 `VARCHAR(32)`，Java 字段使用 enum，并由 MyBatis `EnumTypeHandler` 按枚举名称持久化；不使用数据库 ENUM，追加状态必须通过代码与追加式迁移共同演进。
 - `created_at/updated_at`、截止时间、事件时间均为 UTC `DATETIME(3)`；不可变日志的 `updated_at` 初始等于 `created_at` 且业务代码不得更新。服务日期和时段仍分别使用 `DATE`、`TIME(0)` 表达 Asia/Shanghai 语义。
 - JSON 只用于不可检索快照/扩展信息，不替代规范字段。索引遵循最左前缀和真实查询；列表强制分页。
-- 下表与四个服务的 `V1` Flyway DDL 一致，是阶段 3 的已实现基线；后续字段、索引和状态变更必须新增迁移并同步本文，不得改写 `V1`。
+- 下表与四个服务的 `V1` Flyway DDL 及 auth 的追加式 `V2/V3` 一致；后续字段、索引和状态变更必须新增迁移并同步本文，不得改写已发布迁移。
 
 ## 2. `civicflow_auth`
 
@@ -43,6 +43,21 @@
 `id PK, token_hash BINARY(32), user_id, family_id CHAR(36), status, issued_at, expires_at, revoked_at NULL, replaced_by_hash BINARY(32) NULL, client_fingerprint_hash BINARY(32) NULL, created_at, updated_at`。状态为 `ACTIVE|ROTATED|REVOKED|EXPIRED`，原 token 轮换后保留摘要用于重放检测。
 
 约束/索引：`UNIQUE uk_refresh_hash(token_hash)`；`INDEX idx_refresh_user(user_id,status,expires_at)`；`INDEX idx_refresh_family(family_id,issued_at)`；`INDEX idx_refresh_expiry(status,expires_at,id)`。不保存 token 明文。
+
+### `auth_admin_idempotency`（V2）
+
+`id PK, actor_user_id, operation VARCHAR(64), idempotency_key VARCHAR(128), payload_hash BINARY(32), resource_id NULL, created_at, updated_at`。
+
+- `UNIQUE uk_auth_admin_idempotency(actor_user_id,operation,idempotency_key)`：管理员创建用户、变更状态、替换角色先以 `INSERT IGNORE` 竞争记录，再 `SELECT ... FOR UPDATE` 绑定/复用结果，防止超时重试重复执行。
+- `payload_hash` 是规范化请求的 SHA-256 摘要；密码先以部署 HMAC secret 和独立用途前缀生成不可离线枚举的中间摘要，再参与规范化载荷，表中不保存密码、手机号、refresh/access token 或响应快照。
+- `resource_id` 为目标用户 ID；同 key 异载荷返回幂等冲突。同 key 同载荷在原事务提交后返回当前目标用户投影。
+
+### `auth_security_audit`（V3）
+
+`id PK, actor_user_id NULL, target_user_id NULL, action VARCHAR(64), outcome VARCHAR(32), request_id VARCHAR(64), before_json JSON NULL, after_json JSON NULL, occurred_at, created_at, updated_at`。
+
+- 管理员创建用户、状态变更、角色替换以及 refresh token 重放处置与审计记录在同一本地事务提交；索引覆盖 actor、target 和 requestId 的分页追溯。
+- before/after 只记录状态、版本和角色代码白名单，不记录用户名、手机号、密码、token、密文或摘要。审计事实不可更新/删除。
 
 ## 3. `civicflow_resource`
 

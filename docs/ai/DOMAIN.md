@@ -9,6 +9,8 @@
 | auth | User | id, username, mobileCipher, mobileHash, mobileKeyVersion, passwordHash, status, tokenVersion | 登录主体；手机号只以 HMAC 摘要等值检索 |
 | auth | Role/UserRole | roleCode, status, userId, deleted | 首版 USER/STAFF/ADMIN；授权关系可删除后重建 |
 | auth | RefreshToken | tokenHash, userId, familyId, status, expiresAt, revokedAt | 只保存摘要，轮换并检测重放 |
+| auth | AuthAdminIdempotency | actorUserId, operation, idempotencyKey, payloadHash, resourceId | 管理员写操作幂等绑定；不保存敏感明文 |
+| auth | AuthSecurityAudit | actorUserId, targetUserId, action, outcome, requestId, before/after | 高影响认证管理操作的不可变审计事实 |
 | resource | ServiceOutlet | id, code, name, address, contactPhoneCipher, contactPhoneKeyVersion, status, version | 服务网点；联系电话不参与检索 |
 | resource | ServiceItem | id, code, name, status, defaultDurationMinutes, version | 办理事项；ID 全局唯一 |
 | resource | ServiceWindow | id, outletId, code, name, status, version | 物理/虚拟窗口 |
@@ -57,6 +59,8 @@
 `CREATING` 只存在于查询投影：reservation 在 Redis 已成功且 appointment_order 尚不可见。它不是数据库预约状态，理由与替代方案见 ADR-006。
 
 `FAILED` 也只用于 reservation 查询，表示预占最终补偿、建单被最终拒绝或进入需人工处理的明确失败；响应同时给稳定 failureCode，不把它写入 appointment_order。
+
+auth 会话状态补充：refresh token 仅允许 `ACTIVE -> ROTATED`（成功刷新）或 `ACTIVE|ROTATED -> REVOKED`（登出、禁用、角色变更、重放处置）；过期 token 不再签发 access token。重放已轮换 token 时撤销同 family 并增加用户 `tokenVersion`。账号禁用和角色替换也增加 `tokenVersion`、撤销活动 refresh token；access token 的签名有效不等于高风险管理操作仍获授权，auth Service 会在线复核当前版本与角色。
 
 “有效预约”统一定义为持久化状态 `PENDING_CONFIRM|CONFIRMED|CHECKED_IN|SERVING`，加上尚未持久化的有效 Redis reservation。`COMPLETED|NO_SHOW` 保留消费历史但不占 active guard；`CANCELLED|EXPIRED` 终止并触发可适用的库存释放。
 

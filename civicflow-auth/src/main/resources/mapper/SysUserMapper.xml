@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.civicflow.auth.mapper.SysUserMapper">
+    <select id="selectByLoginIdentifier" resultType="com.civicflow.auth.entity.SysUserEntity">
+        SELECT id, username, mobile_cipher, mobile_hash, mobile_key_version, password_hash,
+               display_name, status, token_version, last_login_at, version, created_at, updated_at, deleted
+        FROM sys_user
+        WHERE deleted = 0
+          AND (username = #{username}
+               <if test="mobileHash != null">OR mobile_hash = #{mobileHash}</if>)
+        LIMIT 1
+    </select>
+
+    <select id="selectActiveById" resultType="com.civicflow.auth.entity.SysUserEntity">
+        SELECT id, username, mobile_cipher, mobile_hash, mobile_key_version, password_hash,
+               display_name, status, token_version, last_login_at, version, created_at, updated_at, deleted
+        FROM sys_user WHERE id = #{id} AND deleted = 0
+    </select>
+
+    <select id="selectByIdForUpdate" resultType="com.civicflow.auth.entity.SysUserEntity">
+        SELECT id, username, mobile_cipher, mobile_hash, mobile_key_version, password_hash,
+               display_name, status, token_version, last_login_at, version, created_at, updated_at, deleted
+        FROM sys_user WHERE id = #{id} AND deleted = 0 FOR UPDATE
+    </select>
+
+    <update id="updateLastLogin">
+        UPDATE sys_user SET last_login_at = #{lastLoginAt}, updated_at = #{lastLoginAt}
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <update id="updateStatusAndInvalidate">
+        UPDATE sys_user
+        SET status = #{status}, token_version = token_version + 1,
+            version = version + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND deleted = 0 AND version = #{expectedVersion}
+    </update>
+
+    <update id="incrementTokenVersion">
+        UPDATE sys_user
+        SET token_version = token_version + 1, version = version + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND deleted = 0
+    </update>
+
+    <update id="incrementTokenVersionIfVersion">
+        UPDATE sys_user
+        SET token_version = token_version + 1, version = version + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND deleted = 0 AND version = #{expectedVersion}
+    </update>
+
+    <sql id="adminPageWhere">
+        deleted = 0
+        <if test="status != null">AND status = #{status}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (username LIKE CONCAT('%', #{keyword}, '%')
+                 OR display_name LIKE CONCAT('%', #{keyword}, '%')
+                 <if test="mobileHash != null">OR mobile_hash = #{mobileHash}</if>)
+        </if>
+    </sql>
+
+    <select id="selectAdminPage" resultType="com.civicflow.auth.entity.SysUserEntity">
+        SELECT id, username, mobile_cipher, mobile_hash, mobile_key_version, password_hash,
+               display_name, status, token_version, last_login_at, version, created_at, updated_at, deleted
+        FROM sys_user
+        WHERE <include refid="adminPageWhere"/>
+        ORDER BY id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countAdminPage" resultType="long">
+        SELECT COUNT(*) FROM sys_user WHERE <include refid="adminPageWhere"/>
+    </select>
+</mapper>

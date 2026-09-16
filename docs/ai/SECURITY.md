@@ -24,6 +24,14 @@ Gateway 先删除客户端所有 `X-User-Id`、`X-User-Roles`、`X-Service-*`、
 - Service JWT 使用独立 key/audience，寿命 1~5 分钟，claim 含 `serviceName,scope,jti`，不能冒充用户 JWT。
 - 浏览器优先 refresh token 放 Secure/HttpOnly/SameSite cookie，access token 仅内存；若部署限制必须持久化，需单独 ADR 与 XSS 风险接受。
 
+auth 首版落地细节：
+
+- auth 既签发也再次验证 access JWT；`/api/v1/admin/**` 除方法级 `hasRole('ADMIN')` 外，Service 还在线校验账号状态、数据库角色和 `tokenVersion`，避免已移除管理员权限的旧 token 在 15 分钟窗口内继续执行高影响操作。`/api/v1/user/me` 同样在线校验版本。
+- RSA key 通过 `civicflow.auth.jwt.keys[]` 配置，每项包含 `kid`、PEM/DER Base64 的 X.509 公钥和可选 PKCS#8 私钥；`active-key-id` 必须指向唯一带私钥的项。生产/开发环境缺少 key 时启动失败，只有 test profile 显式允许进程内临时 key。
+- 手机 AES-256-GCM key 和 HMAC-SHA-256 key 以 32-byte Base64 secret 注入；缺少时启动失败。密文使用随机 96 bit nonce、128 bit tag，并以 keyVersion 作为 AAD；手机号检索只比较 HMAC，响应仅返回 `前三位****后四位`。
+- BCrypt strength 默认 12，可按部署压测调整；仍强制 BCrypt 的 72-byte 上限。错误密码、未知账号、禁用账号和无角色账号共用同一 401 code/message，并对未知账号执行一次 dummy BCrypt 校验，降低账号枚举与明显计时差异。
+- 管理员写操作的幂等摘要只包含规范化载荷摘要；密码先经过带独立用途前缀的 HMAC 再参与摘要，不形成可离线枚举的裸 SHA-256。表中不保存明文密码/手机号；refresh token、access token 和私钥不进入审计记录或响应日志。
+
 ## 3. RBAC 与越权防护
 
 | 入口 | 必须校验 |
@@ -74,3 +82,5 @@ Gateway 先删除客户端所有 `X-User-Id`、`X-User-Roles`、`X-Service-*`、
 - JWT/JWS key 先发布新公钥，再用新 kid 签发，保留旧公钥至最长 token TTL + 时钟偏差，最后撤销。
 - 泄露时立即停止旧 key 签发、发布撤销、提升用户 tokenVersion/撤销 refresh family，审计受影响 jti；二维码 key 泄露则使当前 nonce 失效并重新签发。
 - 密钥轮换、管理员角色变更、对账修复、DLQ 重放均写安全审计并告警。
+
+首版 JWT 轮换操作顺序：先在 `keys[]` 加入新公钥/私钥但保持旧 `active-key-id`，确认 JWKS 消费方已取到新 `kid`；再切换 `active-key-id`；至少保留旧公钥 15 分 30 秒（access TTL + clock skew）后移除。历史 key 配置只保留公钥。refresh token 为不透明会话凭证，不依赖 RSA key，泄露处置需另行撤销 family/提升 `tokenVersion`。

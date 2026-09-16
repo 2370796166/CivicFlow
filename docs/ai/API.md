@@ -24,6 +24,15 @@
 | PATCH `/api/v1/admin/users/{userId}/status` | ADMIN | 必需 | `{status,version}` -> 用户 VO |
 | PUT `/api/v1/admin/users/{userId}/roles` | ADMIN | 必需 | `{roles,version}` -> 用户 VO；tokenVersion 增加 |
 
+认证接口实现约定：
+
+- `loginName` 可为规范化用户名或中国大陆手机号（接受 `+86`/`86` 前缀）；用户名统一转小写。账号不存在、密码错误、账号禁用和账号无有效角色均返回相同的 `AUTH_401_UNAUTHORIZED`，不得通过 code/message 区分。
+- `expiresIn` 单位为秒。access JWT 为 RS256，`sub` 是字符串 userId，claims 仅含标准时间/签发声明、`roles`、`tokenVersion` 和当前 `kid`，不含用户名、手机号或证件号。
+- refresh token 是 256 bit 随机不透明串，数据库仅存 SHA-256 摘要。刷新成功后原 token 变为 `ROTATED`；再次使用已轮换 token 返回 `AUTH_401_REFRESH_REUSED`，撤销整个 family 并增加用户 `tokenVersion`。登出按 family 撤销，重复登出仍返回成功。
+- 管理员用户列表支持 `keyword`（用户名/展示名模糊匹配；完整手机号仅做 HMAC 等值匹配）、`status`、`page`、`size`，手机号只返回脱敏值。`size` 上限 100。
+- 管理员创建、状态变更、角色替换必须带最长 128 字符的 `Idempotency-Key`。服务将 key 绑定 `actor + operation + payloadHash`；同键同载荷返回既有目标用户，同键异载荷返回 `COMMON_409_IDEMPOTENCY_CONFLICT`。
+- 管理员状态接口首版只接受 `ENABLED|DISABLED`，`LOCKED` 仅供后续风控流程；禁用和角色替换都增加 `tokenVersion` 并撤销活动 refresh token。禁止管理员禁用自己或移除自己的 ADMIN 角色。
+
 ## 3. 资源公开查询与管理（resource）
 
 | 方法与路径 | 角色 | 幂等 | 主要请求 -> 响应 |
@@ -98,6 +107,8 @@
 | GET `/internal/v1/appointments/{id}/status` | queue/reconciler | 最小状态快照 |
 | GET `/.well-known/jwks.json` | gateway/services | access/service JWT 公钥；公网暴露策略由部署决定，可缓存 |
 
+JWKS 同时发布活动 key 和仍处于验证窗口的历史公钥，不包含私钥参数。验证方必须按 `kid` 选择 key、仅允许 RS256，并校验 issuer、audience、nbf/exp；轮换流程见 `SECURITY.md`。
+
 ## 7. 错误码
 
 | HTTP | 错误码 | 含义/客户端动作 |
@@ -107,6 +118,8 @@
 | 401 | AUTH_401_UNAUTHORIZED | 未登录、签名/issuer/audience/exp 无效 |
 | 401 | AUTH_401_REFRESH_REUSED | refresh token 重放，撤销 token family |
 | 403 | AUTH_403_FORBIDDEN | 角色不足 |
+| 409 | AUTH_409_USER_EXISTS | 管理员创建的用户名或手机号已被使用 |
+| 409 | AUTH_409_VERSION_CONFLICT | 用户状态/角色版本已过期，刷新后重试 |
 | 403 | SECURITY_403_RESOURCE_SCOPE | 本人/网点/窗口归属不匹配 |
 | 404 | COMMON_404_NOT_FOUND | 资源不存在或为防枚举而隐藏 |
 | 409 | COMMON_409_IDEMPOTENCY_CONFLICT | 同幂等键载荷不同 |

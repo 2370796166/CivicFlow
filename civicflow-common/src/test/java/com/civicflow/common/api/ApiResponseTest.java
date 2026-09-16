@@ -22,7 +22,7 @@ class ApiResponseTest {
         PageResponse<String> response = PageResponse.of(List.of("one"), 1, 20, 21);
 
         assertEquals(2, response.pages());
-        assertThrows(UnsupportedOperationException.class, () -> response.records().add("two"));
+        assertThrows(UnsupportedOperationException.class, () -> response.items().add("two"));
         assertThrows(IllegalArgumentException.class, () -> PageResponse.of(List.of(), 1, 0, 0));
     }
 }

@@ -8,7 +8,7 @@
 - [x] 阶段 1：Maven 多模块可编译骨架
 - [x] 阶段 2：Docker Compose 本地基础设施
 - [x] 阶段 3：Flyway DDL、枚举与错误码基线
-- [ ] 阶段 4：认证与 RBAC
+- [x] 阶段 4：认证与 RBAC
 - [ ] 阶段 5：资源主数据管理
 - [ ] 阶段 6：时间段与号源配置
 - [ ] 阶段 7：网关路由、双层鉴权与限流
@@ -22,7 +22,32 @@
 - [ ] 阶段 15：跨服务 E2E 联调
 - [ ] 阶段 16：并发、可靠性、安全与发布收口
 
-## 本阶段完成内容
+## 阶段 4 完成内容
+
+- 完成 `civicflow-auth` 的 controller -> service -> mapper 首版闭环：用户名/手机号 + BCrypt 密码登录、RS256 access JWT、随机不透明 refresh token、轮换/撤销/family 重放处置、当前用户查询，以及 ADMIN 用户分页、创建、启停和 USER/STAFF/ADMIN 角色替换。
+- Controller 仅负责 Bean Validation、JWT 主体协议适配、方法级 `@PreAuthorize` 和统一 `ApiResponse`；登录、账号状态、tokenVersion、refresh 生命周期、幂等与角色变更事务均位于 Service；用户/角色/refresh/CAS 查询写入 Mapper，复杂角色 join 和状态更新均在 XML。
+- JWT 仅含标准声明、字符串 userId、roles、tokenVersion 和 kid；支持活动私钥 + 多历史公钥的 JWKS 发布与按 kid 本地验签。生产缺少 RSA/手机号保护 key 时启动失败，test profile 才允许临时密钥。
+- auth 新增 `spring-boot-starter-security` 与 `spring-boot-starter-oauth2-resource-server`，版本完全由既有 Spring Boot BOM 管理；二者属于 Spring 官方维护、Apache-2.0 许可，是方法级 RBAC、Bearer JWT 验签及 Nimbus JOSE 编解码所需依赖，未引入独立版本号。
+- refresh token 数据库仅保存 SHA-256 摘要；手机号使用 AES-256-GCM 密文 + HMAC-SHA-256 等值索引；未知账号仍执行 dummy BCrypt，未知账号/错误密码/禁用/无角色统一返回 `AUTH_401_UNAUTHORIZED`。
+- 角色/状态失效与 token 刷新统一采用“先锁用户、再锁 refresh token”的顺序；刷新先无锁定位 userId，取得用户锁后重新锁定并判定 token，避免反向锁序死锁且不依赖初次读取结果裁决。
+- 新增追加式 Flyway `V2__create_auth_admin_idempotency.sql`，以 `(actor,operation,Idempotency-Key)` 唯一绑定 payload hash 和目标用户；新增 `V3__create_auth_security_audit.sql`，使管理员创建/状态/角色 before-after 及 refresh 重放处置审计与业务事务同提交。同键同载荷复用结果，同键异载荷返回 409。同步更新 API、SECURITY、DATABASE、DOMAIN。
+- 增加 H2 MySQL-mode 的独立内存 schema 集成测试（不连接/污染开发库），覆盖登录成功、手机号登录、错误密码/未知/禁用统一失败、当前用户、JWT 最小声明、JWKS 无私钥、refresh 轮换与重放、family 撤销、重复登出、普通用户越权、管理员创建/重复幂等/分配角色/禁用；另有手机号加密单测和 DDL/Entity 契约测试。
+
+## 阶段 4 验证
+
+- `mvn -pl civicflow-auth -am test`：成功；common + auth 共 14 个测试，0 失败、0 错误、0 跳过，其中 auth 12 个。
+- `mvn -pl civicflow-auth -am -DskipTests compile`：成功。
+- `mvn -pl civicflow-auth -am verify`：成功；Spotless、编译、common 2 个测试、auth 12 个测试、JAR/repackage 全部通过，0 失败、0 错误、0 跳过。
+- `mvn verify`：成功；全仓 7 个 reactor 模块全部通过，共 27 个测试，0 失败、0 错误、0 跳过，确认 common 分页字段统一为契约中的 `items` 后未破坏其他模块。
+- `docker compose --env-file deploy/compose/.env.example -f deploy/compose/compose.yaml ps`：失败；Docker Desktop Linux engine named pipe 不存在，因此未执行真实 MySQL Flyway 冒烟。
+
+## 阶段 4 已知风险/后续
+
+- 本机 Docker engine 仍不可用，因此本轮集成测试使用每次测试上下文初始化的 H2 MySQL-mode 隔离 schema；它覆盖事务/RBAC/API 行为，但不能代替 MySQL 8 对 `V1+V2` 的最终 Flyway 冒烟。Docker 恢复后仍需补跑全新 `civicflow_auth` schema。
+- 网关 JWT 校验、限流、header 清洗与前端 cookie/CSRF 接入明确不在本轮；本轮仅提供 JWKS 和统一验证配置能力。
+- 首个生产 ADMIN 仍需由部署初始化流程以合成/受控凭据安全预置；仓库不提交默认管理员密码。管理员安全审计表与 MFA/KMS 供应商仍属于后续安全收口。
+
+## 阶段 3 历史完成内容
 
 - 四个业务服务各新增一个首次 Flyway 迁移 `V1`，共创建 25 张表：auth 4、resource 6、appointment 8、queue 7。仓库此前没有迁移文件，因此没有改写已发布版本；后续结构变更只能追加 `V2+`。
 - auth 创建用户、角色、用户角色、refresh token 表和 USER/STAFF/ADMIN 种子；resource 创建网点、事项、窗口、窗口事项关系、人员窗口授权、号源表；appointment/queue 同步创建 guard、操作日志、消费去重、outbox、库存释放/对账、签到补偿等已确认可靠性表。
@@ -42,6 +67,7 @@
 - `uk_role_code(role_code)`：防止并发初始化或管理操作创建重复角色代码。
 - `uk_user_role(user_id,role_id,deleted)`：防止并发重复授权；历史授权删除后可重新授予。
 - `uk_refresh_hash(token_hash)`：防止同一 refresh token 摘要被并发写成两条会话事实，保证轮换/重放检测定位唯一记录。
+- `uk_auth_admin_idempotency(actor_user_id,operation,idempotency_key)`：防止管理员写操作因并发/超时重试重复执行，并以 payload hash 拒绝同键异载荷。
 
 ### resource
 
@@ -68,7 +94,7 @@
 - queue 的 `uk_message_consumer_idempotency`、`uk_message_consumer_event` 与 `uk_outbox_event`：分别防止消费副作用重放和可靠事件重复建任务。
 - `uk_checkin_reconciliation_appointment`、`uk_checkin_reconciliation_claim`、`uk_checkin_reconciliation_ticket`：防止同一预约、claim 或排队票在同步/异步补偿竞态中产生多条未决修复事实。
 
-## 本阶段验证
+## 阶段 3 历史验证
 
 - `mvn spotless:apply`：成功；新增 Java 文件已按仓库格式规范化。
 - `mvn -pl civicflow-auth,civicflow-resource,civicflow-appointment,civicflow-queue -am test`：成功；reactor 6 个项目全部成功，共 18 个测试，0 失败、0 错误、0 跳过。四个业务模块各执行 1 个应用上下文测试和 3 个数据库契约测试。
@@ -88,4 +114,4 @@
 
 ## 下一阶段
 
-Docker engine 可用时先补做四个全新 MySQL schema 的 Flyway 冒烟并记录结果；随后进入阶段 4，只实现 auth 认证、refresh 轮换与 RBAC Service/Mapper/Controller，不提前实现资源、预约或排队业务接口。
+Docker engine 可用时先补做 auth `V1+V2+V3` 及其余三个全新 MySQL schema 的 Flyway 冒烟并记录结果；随后进入阶段 5，只实现 resource 主数据管理，不提前实现预约或排队业务流程。

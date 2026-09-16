@@ -3,6 +3,8 @@ package com.civicflow.auth;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.civicflow.auth.entity.AuthAdminIdempotencyEntity;
+import com.civicflow.auth.entity.AuthSecurityAuditEntity;
 import com.civicflow.auth.entity.RefreshTokenEntity;
 import com.civicflow.auth.entity.SysRoleEntity;
 import com.civicflow.auth.entity.SysUserEntity;
@@ -20,6 +22,8 @@ import org.junit.jupiter.api.Test;
 
 class AuthDatabaseContractTest {
     private static final String DDL = migration("V1__create_auth_schema.sql");
+    private static final String V2_DDL = migration("V2__create_auth_admin_idempotency.sql");
+    private static final String V3_DDL = migration("V3__create_auth_security_audit.sql");
 
     @Test
     void entitiesMirrorAllAuthTables() {
@@ -27,6 +31,9 @@ class AuthDatabaseContractTest {
         assertEntityMatchesTable(SysRoleEntity.class, "sys_role");
         assertEntityMatchesTable(SysUserRoleEntity.class, "sys_user_role");
         assertEntityMatchesTable(RefreshTokenEntity.class, "refresh_token");
+        assertEntityMatchesTable(
+                AuthAdminIdempotencyEntity.class, "auth_admin_idempotency", V2_DDL);
+        assertEntityMatchesTable(AuthSecurityAuditEntity.class, "auth_security_audit", V3_DDL);
     }
 
     @Test
@@ -47,18 +54,22 @@ class AuthDatabaseContractTest {
     }
 
     private static void assertEntityMatchesTable(Class<?> entityType, String table) {
-        assertEquals(columnsFor(table), fieldsOf(entityType), table);
+        assertEntityMatchesTable(entityType, table, DDL);
     }
 
-    private static Set<String> columnsFor(String table) {
+    private static void assertEntityMatchesTable(Class<?> entityType, String table, String ddl) {
+        assertEquals(columnsFor(table, ddl), fieldsOf(entityType), table);
+    }
+
+    private static Set<String> columnsFor(String table, String ddl) {
         Pattern tablePattern =
                 Pattern.compile(
                         "(?ms)CREATE TABLE " + Pattern.quote(table) + " \\((.*?)^\\) ENGINE");
-        Matcher tableMatcher = tablePattern.matcher(DDL);
+        Matcher tableMatcher = tablePattern.matcher(ddl);
         assertTrue(tableMatcher.find(), table);
         Matcher columnMatcher =
                 Pattern.compile(
-                                "(?m)^    ([a-z][a-z0-9_]*) (?:BIGINT|INT|SMALLINT|VARCHAR|CHAR|BINARY|VARBINARY|DATETIME)")
+                                "(?m)^    ([a-z][a-z0-9_]*) (?:BIGINT|INT|SMALLINT|VARCHAR|CHAR|BINARY|VARBINARY|DATETIME|JSON)")
                         .matcher(tableMatcher.group(1));
         return columnMatcher.results().map(result -> result.group(1)).collect(Collectors.toSet());
     }

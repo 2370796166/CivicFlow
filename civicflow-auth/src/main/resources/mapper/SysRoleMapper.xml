@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.civicflow.auth.mapper.SysRoleMapper">
+    <resultMap id="roleEntity" type="com.civicflow.auth.entity.SysRoleEntity">
+        <id property="id" column="id"/>
+        <result property="roleCode" column="role_code" typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+        <result property="roleName" column="role_name"/>
+        <result property="status" column="status" typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+        <result property="version" column="version"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="selectEnabledRoleCodesByUserId" resultType="com.civicflow.auth.enums.RoleCode">
+        SELECT r.role_code
+        FROM sys_user_role ur
+        INNER JOIN sys_role r ON r.id = ur.role_id
+        WHERE ur.user_id = #{userId} AND ur.deleted = 0 AND r.status = 'ENABLED'
+        ORDER BY r.id
+    </select>
+
+    <select id="selectEnabledByCodes" resultMap="roleEntity">
+        SELECT id, role_code, role_name, status, version, created_at, updated_at
+        FROM sys_role
+        WHERE status = 'ENABLED' AND role_code IN
+        <foreach collection="roleCodes" item="roleCode" open="(" separator="," close=")">
+            #{roleCode}
+        </foreach>
+        ORDER BY id
+    </select>
+</mapper>
