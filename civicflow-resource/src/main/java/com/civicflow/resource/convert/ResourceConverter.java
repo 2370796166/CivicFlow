@@ -3,7 +3,9 @@ package com.civicflow.resource.convert;
 import com.civicflow.resource.config.ContactPhoneProtector;
 import com.civicflow.resource.dto.response.ItemResponse;
 import com.civicflow.resource.dto.response.OutletResponse;
+import com.civicflow.resource.dto.response.SlotResponse;
 import com.civicflow.resource.dto.response.WindowResponse;
+import com.civicflow.resource.entity.ResourceSlotEntity;
 import com.civicflow.resource.entity.ServiceItemEntity;
 import com.civicflow.resource.entity.ServiceOutletEntity;
 import com.civicflow.resource.entity.ServiceWindowEntity;
@@ -51,6 +53,24 @@ public final class ResourceConverter {
                 entity.getCode(),
                 entity.getName(),
                 entity.getStatus(),
+                entity.getVersion());
+    }
+
+    public static SlotResponse toSlot(ResourceSlotEntity entity) {
+        return new SlotResponse(
+                entity.getId().toString(),
+                entity.getOutletId().toString(),
+                entity.getItemId().toString(),
+                entity.getServiceDate(),
+                entity.getStartTime(),
+                entity.getEndTime(),
+                entity.getTotalQuota(),
+                entity.getReleaseAt(),
+                entity.getCheckInStart(),
+                entity.getCheckInEnd(),
+                entity.getStatus(),
+                entity.getConfigVersion(),
+                entity.getConsumedHint(),
                 entity.getVersion());
     }
 }

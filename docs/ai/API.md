@@ -66,6 +66,14 @@
 - 停用网点/事项/窗口前检查当天及未来的 `SCHEDULED|OPEN|SUSPENDED` 号源；窗口按当前网点及事项绑定判断。存在未来号源返回 `RESOURCE_409_IN_USE`。删除还检查活动窗口、窗口事项关系和 STAFF scope，只做逻辑删除。
 - `GET /api/v1/staff/scopes` 从 JWT `sub` 取 staffUserId，仅返回该人员获授权且当前启用的网点、窗口与事项；不存在修改资源配置的 STAFF 路由。用户查询只返回启用网点以及至少被一个启用窗口绑定的启用事项。
 
+号源配置实现约定：
+
+- `GET /api/v1/admin/slots` 支持 `outletId,itemId,dateFrom,dateTo,status,page,size`，`dateFrom/dateTo` 相同即为某日明细；单日创建请求为 `{outletId,itemId,serviceDate,startTime,endTime,totalQuota,releaseAt,checkInStart,checkInEnd,status}`。创建只接受 `DRAFT|SCHEDULED`，事项必须已被该网点至少一个启用窗口绑定。
+- `POST /api/v1/admin/slots/batch` 使用 `{outletId,itemId,startDate,endDate,startTime,endTime,totalQuota,releaseDaysBefore,releaseTime,checkInStart,checkInEnd,status}`，按 Asia/Shanghai 为每个服务日计算 instant；日期范围最多 31 天。完全相同时段计入 `skipped`，非完全相同的交叠时段进入 `failed[{serviceDate,code,message}]`，同一幂等键重试返回首次完整结果。
+- 可配置日期为 Asia/Shanghai 当天至未来 365 天；必须满足 `endTime > startTime`、`releaseAt < slotStart`、`checkInStart <= slotStart <= checkInEnd <= slotEnd`。`SCHEDULED` 的 releaseAt 必须仍在未来。完整 PUT 只允许编辑 `DRAFT`；状态按 `DRAFT -> SCHEDULED/OPEN/CLOSED`、`SCHEDULED -> OPEN/SUSPENDED/CLOSED`、`OPEN -> SUSPENDED/CLOSED`、`SUSPENDED -> SCHEDULED/OPEN/CLOSED` 转换，并结合 releaseAt/slotEnd 校验。
+- 创建/更新时间段按“网点行 -> 事项行 -> `(outlet,item,serviceDate)` guard 行”加锁后检查 `existing.start < new.end && existing.end > new.start`。相邻边界不算重叠；`uk_slot_exact` 是最后一道完全重复防线。
+- quota 调整以 `configVersion` CAS。降额不得低于 `consumedHint`；已到 releaseAt 或处于 `OPEN|SUSPENDED` 时，如果消费事实尚未同步则拒绝降额并返回 `RESOURCE_409_CONSUMPTION_UNKNOWN`。有效 quota/状态变化与审计、`resource.slot.changed.v1` outbox 在同一本地事务提交；resource 不直接 SET/INCR Redis。
+
 ## 4. 预约（appointment）
 
 | 方法与路径 | 角色 | 幂等 | 主要请求 -> 响应 |
@@ -134,6 +142,9 @@ JWKS 同时发布活动 key 和仍处于验证窗口的历史公钥，不包含�
 | 409 | RESOURCE_409_VERSION_CONFLICT | 配置乐观锁冲突，刷新后重试 |
 | 409 | RESOURCE_409_CODE_EXISTS | 网点/事项编码或同网点窗口编码已存在 |
 | 409 | RESOURCE_409_SLOT_OVERLAP | 时段重复/重叠 |
+| 409 | RESOURCE_409_SLOT_STATE_CONFLICT | 当前号源状态、父资源或状态转换不允许操作 |
+| 409 | RESOURCE_409_QUOTA_BELOW_CONSUMED | 新总量低于已同步消费量 |
+| 409 | RESOURCE_409_CONSUMPTION_UNKNOWN | 已放号但消费事实未同步，禁止降额 |
 | 409 | RESOURCE_409_IN_USE | 有未来号源/业务引用，不可停用删除 |
 | 409 | APPT_409_DUP_ACTIVE | 同用户同事项同日已有有效预约 |
 | 409 | APPT_409_STOCK_EMPTY | 库存不足 |

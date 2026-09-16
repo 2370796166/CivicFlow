@@ -78,7 +78,7 @@
 约束/索引：
 
 - `CHECK(end_time > start_time AND total_quota >= 0 AND check_in_end > check_in_start)`。
-- `UNIQUE uk_slot_exact(outlet_id,item_id,service_date,start_time,end_time,deleted)`；重叠时段无法仅靠普通唯一索引防止，Service 在事务内对同一 `(outlet,item,date)` 使用命名锁/父行锁后做重叠查询，且数据库异常归一为冲突。
+- `UNIQUE uk_slot_exact(outlet_id,item_id,service_date,start_time,end_time,deleted)`；重叠时段无法仅靠普通唯一索引防止，Service 在事务内依次锁网点、事项和 `resource_slot_day_lock` 的 `(outlet,item,date)` guard 行后做重叠查询，且数据库异常归一为冲突。
 - `INDEX idx_slot_calendar(outlet_id,item_id,service_date,status,deleted,start_time)`。
 - `INDEX idx_slot_release(status,release_at,id)` 用于分页预热。
 - `config_version` 每次影响 Redis 的配置变更单调递增；同步只接受连续版本。
@@ -88,6 +88,13 @@
 - `resource_admin_idempotency`：`id, actor_user_id, operation, idempotency_key, payload_hash BINARY(32), resource_id NULL, created_at, updated_at`；`UNIQUE(actor_user_id,operation,idempotency_key)`。payloadHash 使用部署 secret 的 HMAC-SHA-256 计算，避免联系电话等低熵字段形成可离线枚举的裸摘要；表中不保存请求/响应明文。
 - `resource_admin_audit`：`id, actor_user_id, resource_type, resource_id, action, request_id, before_json, after_json, occurred_at, created_at, updated_at`。before/after 只记录 code/name/status/version/outletId/itemIds 等白名单配置，不记录联系电话、联系电话密文/密钥、JWT 或完整请求体；审计事实不可更新或删除。
 - 网点、事项、窗口的更新、状态变更、逻辑删除均以 `id + version + deleted=0` 条件更新；状态 SQL 额外限制当前状态属于 `ENABLED|DISABLED`。窗口事项关系以窗口 `version` 作为聚合并发控制，替换时旧关系写 `deleted=id` 后再插入新关系。
+
+### 号源并发、批量幂等与事件（V3）
+
+- `resource_slot_day_lock`：`id,outlet_id,item_id,service_date,created_at,updated_at`；`UNIQUE(outlet_id,item_id,service_date)`。事务先 `INSERT IGNORE` 建 guard，再 `SELECT ... FOR UPDATE`，使完全重复和部分重叠创建在同一业务日串行；跨业务日更新按 outletId、itemId、serviceDate 排序取锁。
+- `resource_slot_batch_result`：`id,result_json,created_at,updated_at`。`id` 与批量操作的 `resource_admin_idempotency.resource_id` 绑定，保存不含敏感信息的 `{created,skipped,failed[]}`，确保超时重试返回首次结果而不是重新解释当前数据。
+- `resource_slot_outbox`：`id,event_id,slot_id,event_type,event_version,routing_key,payload_json,status,attempts,next_attempt_at,published_at,last_error_code,created_at,updated_at`；eventId 唯一，发布扫描索引为 `(status,next_attempt_at,id)`。配置事务只写 `PENDING` outbox，不直接修改 Redis；后续发布器按 `resource.slot.changed.v1` 投递，发布状态是技术状态而非 slot 生命周期。
+- slot 完整更新仅允许 `DRAFT` 且用 `id + version + status IN (...)` 条件更新；状态变更与 quota 调整同时增加 `version` 和 `config_version`。quota 使用 `id + expectedConfigVersion + status IN (...)` CAS，已放号降额必须有足够的 `consumed_hint` 证据。
 
 ## 4. `civicflow_appointment`
 

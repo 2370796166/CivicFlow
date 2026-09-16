@@ -93,7 +93,7 @@ appointment 在 check-in claim 的 CAS 事务内写 outbox。payload：`{claimId
 
 ### resource slot 变更
 
-首版优先由 appointment 通过 Feign 拉取/轮询配置快照。若实现事件，则使用 `resource.slot.changed.v1`：`{slotId,oldTotalQuota,newTotalQuota,oldStatus,newStatus,configVersion,changedAt}`，outbox 发布到 `cf.resource.x`。appointment 只接受 `configVersion=current+1` 的增量；版本跳跃转全量拉取与对账，不直接 SET 库存。
+resource 已在号源配置事务内写入 `resource.slot.changed.v1` transactional outbox，payload 为 `{slotId,oldTotalQuota,newTotalQuota,oldStatus,newStatus,configVersion,changedAt}`，完整 envelope 仍包含 eventId/eventType/eventVersion/occurredAt/traceId/producer。outbox routing key 为 `resource.slot.changed.v1`，目标 exchange 为 `cf.resource.x`；RabbitMQ 发布器与消费者在后续预约/库存阶段接入，当前不得绕过 outbox 直接改 Redis。appointment 只接受 `configVersion=current+1` 的增量；首次版本或版本跳跃转内部快照拉取与对账，不直接 SET 库存。
 
 ## 4. 重试、死信与确认
 

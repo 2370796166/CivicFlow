@@ -1,3 +1,6 @@
+DROP TABLE IF EXISTS resource_slot_outbox;
+DROP TABLE IF EXISTS resource_slot_batch_result;
+DROP TABLE IF EXISTS resource_slot_day_lock;
 DROP TABLE IF EXISTS resource_admin_audit;
 DROP TABLE IF EXISTS resource_admin_idempotency;
 DROP TABLE IF EXISTS resource_slot;
@@ -119,4 +122,39 @@ CREATE TABLE resource_admin_audit (
     occurred_at TIMESTAMP(3) NOT NULL,
     created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE resource_slot_day_lock (
+    id BIGINT NOT NULL PRIMARY KEY,
+    outlet_id BIGINT NOT NULL,
+    item_id BIGINT NOT NULL,
+    service_date DATE NOT NULL,
+    created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_slot_day_lock UNIQUE (outlet_id, item_id, service_date)
+);
+
+CREATE TABLE resource_slot_batch_result (
+    id BIGINT NOT NULL PRIMARY KEY,
+    result_json JSON NOT NULL,
+    created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE resource_slot_outbox (
+    id BIGINT NOT NULL PRIMARY KEY,
+    event_id CHAR(36) NOT NULL,
+    slot_id BIGINT NOT NULL,
+    event_type VARCHAR(128) NOT NULL,
+    event_version INT NOT NULL,
+    routing_key VARCHAR(128) NOT NULL,
+    payload_json JSON NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    attempts INT NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMP(3) NOT NULL,
+    published_at TIMESTAMP(3),
+    last_error_code VARCHAR(128),
+    created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_resource_slot_outbox_event UNIQUE (event_id)
 );

@@ -10,7 +10,7 @@
 - [x] 阶段 3：Flyway DDL、枚举与错误码基线
 - [x] 阶段 4：认证与 RBAC
 - [x] 阶段 5：资源主数据管理
-- [ ] 阶段 6：时间段与号源配置
+- [x] 阶段 6：时间段与号源配置
 - [ ] 阶段 7：网关路由、双层鉴权与限流
 - [ ] 阶段 8：号源预热、Redis Lua 预占/补偿
 - [ ] 阶段 9：RabbitMQ 异步建单与查询投影
@@ -21,6 +21,31 @@
 - [ ] 阶段 14：Vue 3 工程与三角色页面
 - [ ] 阶段 15：跨服务 E2E 联调
 - [ ] 阶段 16：并发、可靠性、安全与发布收口
+
+## 阶段 6 完成内容
+
+- 完成 `civicflow-resource` 号源配置的 controller -> service -> mapper 闭环：ADMIN 日历分页/某日明细、单日创建、最长 31 日批量生成、DRAFT 完整编辑、显式状态转换与 configVersion quota 调整；所有写接口延续 ADMIN RBAC、最长 128 字符 `Idempotency-Key`、事务审计和稳定错误码。
+- 单日与批量请求统一校验 Asia/Shanghai 当天至未来 365 天、`endTime > startTime`、releaseAt 早于 slotStart、`checkInStart <= slotStart <= checkInEnd <= slotEnd`；新建仅允许 DRAFT/SCHEDULED，SCHEDULED 的 releaseAt 必须仍在未来。父网点/事项必须启用，且该事项至少绑定网点的一个启用窗口。
+- 追加 Flyway `V3__create_resource_slot_control.sql`：`resource_slot_day_lock` 以 `(outlet,item,serviceDate)` 唯一 guard 将精确重复和部分重叠检查串行化；固定网点 -> 事项 -> 业务日锁顺序，跨日更新再按三元组排序，避免“先查再插”和反向锁序。相邻半开区间允许，真正交叠统一返回 `RESOURCE_409_SLOT_OVERLAP`。
+- 批量生成把完全相同时段计为 skipped，把交叠/逐日校验问题返回 failed 明细，并用 `resource_slot_batch_result` 绑定管理幂等记录，确保同键同载荷重试返回首次 `{created,skipped,failed[]}`，不因当前数据变化重新解释结果。
+- quota 以 configVersion CAS，完整编辑/状态/quota SQL 均带允许状态条件并校验影响行数。已到 releaseAt 或 OPEN/SUSPENDED 后，降额必须有 `consumedHint` 证据且不得低于消费量；证据缺失返回 `RESOURCE_409_CONSUMPTION_UNKNOWN`，低于消费返回 `RESOURCE_409_QUOTA_BELOW_CONSUMED`。
+- 新增 `resource_slot_outbox`，SCHEDULED 创建、状态变化和 quota 变化与配置及审计在同一本地事务写入完整 `resource.slot.changed.v1` envelope，包含连续 configVersion，等待后续 publisher 投递 `cf.resource.x`。本阶段没有引入 Redis 客户端、Lua 抢号或直接覆盖库存。
+- 同步更新 API、DATABASE、DOMAIN、EVENTS 契约与 H2 隔离 schema；新增 DDL/Entity 契约和集成测试，覆盖创建/查询、相邻与重叠、批量 created/skipped/failed 及结果重放、状态事件、放号后降额保护、outbox payload/configVersion，以及两个线程重叠创建时仅一个成功。
+
+## 阶段 6 验证
+
+- `mvn -pl civicflow-resource -am test`：成功；common 2 个、resource 13 个测试，共 15 个，0 失败、0 错误、0 跳过。
+- `mvn verify`：成功；全仓 7 个 reactor 模块全部通过，共 36 个测试，0 失败、0 错误、0 跳过；Spotless、编译、测试、JAR/repackage 均成功。
+- `docker compose --env-file deploy/compose/.env.example -f deploy/compose/compose.yaml config --quiet`：成功。
+- `docker compose --env-file deploy/compose/.env.example -f deploy/compose/compose.yaml ps`：失败；Docker Desktop Linux engine named pipe 仍拒绝连接，因此没有声称 MySQL 8 Flyway 冒烟通过。
+- 完成状态名、表名、API 路径、routing key、错误码与 Redis 边界搜索；`git diff --check` 仅报告 Windows 工作树 LF/CRLF 提示时不视为空白错误，提交前再次复核。
+
+## 阶段 6 已知风险/后续
+
+- 本机 Docker engine 不可用，`civicflow_resource` 的真实 MySQL 8 `V1+V2+V3` 空 schema Flyway、JSON 列与 `INSERT IGNORE + SELECT FOR UPDATE` 竞争语义仍需环境恢复后冒烟；H2 MySQL-mode 测试不能替代该验证。
+- 本轮只可靠地产生 PENDING transactional outbox；RabbitMQ publisher confirm、失败重试、appointment 消费/版本跳跃回源，以及 Redis 预热/增量 Lua 属于后续阶段，不得把 outbox 行误报为已经投递。`consumedHint` 也要由后续受保护的同步/对账链路维护。
+- `/api/v1/user/slots` 可预约投影和 `/internal/v1/resource/slots/**` 快照/预热候选仍按既有 API 契约留给 appointment/库存联调阶段；本轮“日历/某日明细”只开放 ADMIN 配置视图，没有提前暴露库存派生值。
+- 下一步进入阶段 7：网关路由、双层鉴权、伪造头清洗与限流；不在网关实现号源业务或 Redis 库存状态机。
 
 ## 阶段 5 完成内容
 
@@ -43,9 +68,9 @@
 ## 阶段 5 已知风险/后续
 
 - 本机 Docker engine 仍不可用，`civicflow_resource` 的 MySQL 8 `V1+V2` 空 schema Flyway、JSON 列、`INSERT IGNORE` 和唯一冲突语义尚未真实冒烟；当前 H2 只验证事务/API/映射行为，不能替代 MySQL 8。
-- 阶段 6 创建/变更号源时必须沿用并明确父资源锁顺序，使“检查未来号源后停用”与并发新建号源串行化；不得退化为无锁先查再写。当前阶段尚无 slot 写 API。
+- （阶段 5 结束时记录，已由阶段 6 解决）创建/变更号源必须沿用并明确父资源锁顺序，使“检查未来号源后停用”与并发新建号源串行化；不得退化为无锁先查再写；当时尚无 slot 写 API。
 - STAFF scope 本轮只实现按既有授权关系读取；授权关系的管理员维护入口尚未列入提示词 5，未擅自扩展。网关 header 清洗、路由和限流仍在阶段 7。
-- 下一步进入阶段 6，仅实现时间段与号源配置、重叠防护和批量边界，不提前实现 Redis 预热或预约流程。
+- （阶段 5 结束时计划，现已完成）下一步进入阶段 6，仅实现时间段与号源配置、重叠防护和批量边界，不提前实现 Redis 预热或预约流程。
 
 ## 阶段 4 完成内容
 
@@ -133,7 +158,7 @@
 - 产品需确认 CONFIRMED 预约允许用户取消的截止规则；当前契约采用“签到前且取消截止前可取消”，截止时长尚未定。
 - 产品需确认 STAFF 过号后是否允许人工回队；当前首版 MISSED/NO_SHOW 为终态。
 - 上线前需确定实名字段、数据保留期限、管理员 MFA、KMS/secret 与服务间 mTLS 方案。当前未创建证件号列；若产品确认采集，必须追加迁移并使用 cipher/hash/key-version 三列模式。
-- `resource_slot` 的普通唯一索引只能阻止完全相同时段；重叠区间必须在后续 Service 实现中锁定 `(outlet,item,date)` 后检查，不能退化为“先查再插”。
+- （阶段 3 结束时风险，已由阶段 6 解决）`resource_slot` 的普通唯一索引只能阻止完全相同时段；重叠区间必须在 Service 实现中锁定 `(outlet,item,date)` 后检查，不能退化为“先查再插”。
 - MyBatis 在 mapper 尚未进入实现阶段时仍会报告“未发现 Mapper”警告，符合本轮不创建空接口/Controller 的范围。
 - Redis `{itemId:serviceDate}` 热点分片阈值仍需由压测确定。
 

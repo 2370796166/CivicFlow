@@ -145,6 +145,8 @@ WAITING --叫下一号(锁定领取)--> CALLED --开始办理--> SERVING --完�
 
 资源主数据规则：网点、事项、窗口创建后默认为 `ENABLED`；停用前以 Asia/Shanghai 当天为边界检查 `SCHEDULED|OPEN|SUSPENDED` 的当前/未来号源，窗口通过当前 `window_item_rel` 映射到网点/事项号源。逻辑删除还要求没有活动窗口/绑定/scope 等配置引用。所有变更以 version CAS 裁决；窗口事项集合是窗口聚合的一部分，替换绑定会增加窗口 version。
 
+号源配置规则：同一网点、事项、服务日期下的半开区间 `[startTime,endTime)` 不得重叠，相邻边界允许；事务以网点、事项、业务日 guard 的固定顺序串行检查。新建只进入 DRAFT/SCHEDULED，完整编辑只允许 DRAFT，启停/关闭走显式状态转换。批量模板最多覆盖 31 个服务日，精确重复跳过、部分交叠逐日失败。已到 releaseAt 或处于 OPEN/SUSPENDED 后，降额必须先取得 appointment 消费事实并保证 `newTotal >= consumedHint`；所有 quota/状态变化增加 configVersion 并写 `resource.slot.changed.v1` outbox，resource 不操作 Redis 运行时库存。
+
 ## 6. 时间与幂等语义
 
 - `confirmDeadline = appointment.createdAt + 5 minutes`；数据库时间是最终裁决，前端倒计时仅展示。

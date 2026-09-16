@@ -49,6 +49,9 @@ class ResourceFlowIntegrationTest {
 
     @BeforeEach
     void resetDatabase() {
+        jdbcTemplate.update("DELETE FROM resource_slot_outbox");
+        jdbcTemplate.update("DELETE FROM resource_slot_batch_result");
+        jdbcTemplate.update("DELETE FROM resource_slot_day_lock");
         jdbcTemplate.update("DELETE FROM resource_admin_audit");
         jdbcTemplate.update("DELETE FROM resource_admin_idempotency");
         jdbcTemplate.update("DELETE FROM resource_slot");

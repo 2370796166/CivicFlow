@@ -5,7 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.civicflow.resource.entity.ResourceAdminAuditEntity;
 import com.civicflow.resource.entity.ResourceAdminIdempotencyEntity;
+import com.civicflow.resource.entity.ResourceSlotBatchResultEntity;
+import com.civicflow.resource.entity.ResourceSlotDayLockEntity;
 import com.civicflow.resource.entity.ResourceSlotEntity;
+import com.civicflow.resource.entity.ResourceSlotOutboxEntity;
 import com.civicflow.resource.entity.ServiceItemEntity;
 import com.civicflow.resource.entity.ServiceOutletEntity;
 import com.civicflow.resource.entity.ServiceWindowEntity;
@@ -25,6 +28,7 @@ import org.junit.jupiter.api.Test;
 class ResourceDatabaseContractTest {
     private static final String DDL = migration("V1__create_resource_schema.sql");
     private static final String ADMIN_DDL = migration("V2__create_resource_admin_control.sql");
+    private static final String SLOT_DDL = migration("V3__create_resource_slot_control.sql");
 
     @Test
     void entitiesMirrorAllResourceTables() {
@@ -37,6 +41,11 @@ class ResourceDatabaseContractTest {
         assertEntityMatchesTable(
                 ResourceAdminIdempotencyEntity.class, "resource_admin_idempotency", ADMIN_DDL);
         assertEntityMatchesTable(ResourceAdminAuditEntity.class, "resource_admin_audit", ADMIN_DDL);
+        assertEntityMatchesTable(
+                ResourceSlotDayLockEntity.class, "resource_slot_day_lock", SLOT_DDL);
+        assertEntityMatchesTable(
+                ResourceSlotBatchResultEntity.class, "resource_slot_batch_result", SLOT_DDL);
+        assertEntityMatchesTable(ResourceSlotOutboxEntity.class, "resource_slot_outbox", SLOT_DDL);
     }
 
     @Test
@@ -46,6 +55,8 @@ class ResourceDatabaseContractTest {
         assertTrue(DDL.contains("UNIQUE KEY uk_slot_exact"));
         assertTrue(DDL.contains("KEY idx_slot_calendar"));
         assertTrue(DDL.contains("KEY idx_slot_release"));
+        assertTrue(SLOT_DDL.contains("UNIQUE KEY uk_slot_day_lock"));
+        assertTrue(SLOT_DDL.contains("UNIQUE KEY uk_resource_slot_outbox_event"));
     }
 
     @Test
@@ -53,6 +64,12 @@ class ResourceDatabaseContractTest {
         assertEquals("RESOURCE_409_VERSION_CONFLICT", ResourceErrorCode.VERSION_CONFLICT.code());
         assertEquals("RESOURCE_409_CODE_EXISTS", ResourceErrorCode.CODE_EXISTS.code());
         assertEquals("RESOURCE_409_SLOT_OVERLAP", ResourceErrorCode.SLOT_OVERLAP.code());
+        assertEquals(
+                "RESOURCE_409_SLOT_STATE_CONFLICT", ResourceErrorCode.SLOT_STATE_CONFLICT.code());
+        assertEquals(
+                "RESOURCE_409_QUOTA_BELOW_CONSUMED", ResourceErrorCode.QUOTA_BELOW_CONSUMED.code());
+        assertEquals(
+                "RESOURCE_409_CONSUMPTION_UNKNOWN", ResourceErrorCode.CONSUMPTION_UNKNOWN.code());
         assertEquals("RESOURCE_409_IN_USE", ResourceErrorCode.IN_USE.code());
         assertTrue(ADMIN_DDL.contains("UNIQUE KEY uk_resource_admin_idempotency"));
         assertTrue(ADMIN_DDL.contains("CREATE TABLE resource_admin_audit"));
@@ -77,7 +94,7 @@ class ResourceDatabaseContractTest {
         assertTrue(tableMatcher.find(), table);
         Matcher columnMatcher =
                 Pattern.compile(
-                                "(?m)^    ([a-z][a-z0-9_]*) (?:BIGINT|INT|SMALLINT|VARCHAR|VARBINARY|BINARY|JSON|DECIMAL|DATE|TIME|DATETIME)")
+                                "(?m)^    ([a-z][a-z0-9_]*) (?:BIGINT|INT|SMALLINT|VARCHAR|CHAR|VARBINARY|BINARY|JSON|DECIMAL|DATE|TIME|DATETIME)")
                         .matcher(tableMatcher.group(1));
         return columnMatcher.results().map(result -> result.group(1)).collect(Collectors.toSet());
     }
