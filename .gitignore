@@ -23,3 +23,7 @@ Thumbs.db
 .env.*
 !.env.example
 
+# Local-only project guidance and design documents
+/docs/
+/AGENTS.md
+/CivicFlow-AI开发提示词.md
