@@ -58,6 +58,13 @@
     <select id="countAdminPage" resultType="long">
         SELECT COUNT(*) FROM resource_slot WHERE <include refid="adminWhere"/>
     </select>
+    <select id="selectPreheatCandidates" resultType="com.civicflow.resource.entity.ResourceSlotEntity">
+        SELECT <include refid="columns"/> FROM resource_slot
+        WHERE deleted = 0 AND id &gt; #{afterId}
+          AND release_at &gt;= #{releaseFrom} AND release_at &lt; #{releaseTo}
+          AND status IN ('SCHEDULED','SUSPENDED')
+        ORDER BY id LIMIT #{size}
+    </select>
     <update id="updateDraftDetails">
         UPDATE resource_slot SET outlet_id = #{outletId}, item_id = #{itemId},
             service_date = #{serviceDate}, start_time = #{startTime}, end_time = #{endTime},

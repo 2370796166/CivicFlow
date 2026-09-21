@@ -1,6 +1,7 @@
 package com.civicflow.resource.config;
 
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
@@ -78,7 +79,13 @@ public class ResourceSecurityConfig {
                 JwtValidators.createDefaultWithIssuer(config.getIssuer());
         OAuth2TokenValidator<Jwt> audienceValidator =
                 jwt ->
-                        jwt.getAudience().contains(config.getAudience())
+                        jwt.getAudience().stream()
+                                        .anyMatch(
+                                                audience ->
+                                                        audience.equals(config.getAudience())
+                                                                || audience.equals(
+                                                                        config
+                                                                                .getServiceAudience()))
                                 ? OAuth2TokenValidatorResult.success()
                                 : OAuth2TokenValidatorResult.failure(
                                         new OAuth2Error(
@@ -96,14 +103,26 @@ public class ResourceSecurityConfig {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(
                 jwt -> {
+                    List<GrantedAuthority> authorities = new ArrayList<>();
                     Collection<String> roles = jwt.getClaimAsStringList("roles");
-                    if (roles == null) {
-                        return List.of();
+                    if (roles != null) {
+                        roles.forEach(
+                                role ->
+                                        authorities.add(
+                                                new SimpleGrantedAuthority("ROLE_" + role)));
                     }
-                    return roles.stream()
-                            .<GrantedAuthority>map(
-                                    role -> new SimpleGrantedAuthority("ROLE_" + role))
-                            .toList();
+                    Object scopeClaim = jwt.getClaim("scope");
+                    if (scopeClaim instanceof String scopes) {
+                        scopes.lines()
+                                .flatMap(line -> List.of(line.split(" ")).stream())
+                                .filter(scope -> !scope.isBlank())
+                                .forEach(
+                                        scope ->
+                                                authorities.add(
+                                                        new SimpleGrantedAuthority(
+                                                                "SCOPE_" + scope)));
+                    }
+                    return authorities;
                 });
         return converter;
     }

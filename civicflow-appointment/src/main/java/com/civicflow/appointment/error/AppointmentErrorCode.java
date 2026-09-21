@@ -7,6 +7,12 @@ public enum AppointmentErrorCode implements GlobalErrorCode {
     STOCK_EMPTY("APPT_409_STOCK_EMPTY", "No stock remains for the selected slot"),
     STATE_CONFLICT("APPT_409_STATE_CONFLICT", "Appointment state conflicts with this operation"),
     CONFIRM_TIMEOUT("APPT_409_CONFIRM_TIMEOUT", "Appointment confirmation deadline has passed"),
+    STOCK_REBUILD_UNSAFE(
+            "APPT_409_STOCK_REBUILD_UNSAFE",
+            "Released stock cannot be rebuilt without complete consumption evidence"),
+    SLOT_VERSION_GAP(
+            "APPT_409_SLOT_VERSION_GAP", "Slot stock configuration version is not continuous"),
+    STOCK_INVARIANT_BROKEN("APPT_409_STOCK_INVARIANT_BROKEN", "Slot stock requires reconciliation"),
     RESERVATION_GONE("APPT_410_RESERVATION_GONE", "Reservation has expired or been compensated"),
     SLOT_NOT_OPEN("APPT_422_SLOT_NOT_OPEN", "Resource slot is not open"),
     QR_EXPIRED("SECURITY_410_QR_EXPIRED", "Check-in token has expired or is no longer current");

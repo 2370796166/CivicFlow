@@ -23,6 +23,13 @@ spring:
       direct:
         auto-startup: false
 
+civicflow:
+  appointment:
+    jwt:
+      allow-test-decoder: true
+    preheat:
+      enabled: false
+
 management:
   health:
     nacos:
@@ -31,4 +38,3 @@ management:
       enabled: false
     redis:
       enabled: false
-

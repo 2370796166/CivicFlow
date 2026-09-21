@@ -19,3 +19,21 @@ management:
   endpoint:
     health:
       show-details: never
+
+civicflow:
+  appointment:
+    environment: ${CIVICFLOW_ENV:dev}
+    jwt:
+      issuer: ${CIVICFLOW_JWT_ISSUER:https://auth.civicflow.local}
+      audience: ${CIVICFLOW_JWT_AUDIENCE:civicflow-api}
+      jwk-set-uri: ${CIVICFLOW_JWKS_URI:http://civicflow-auth:8081/.well-known/jwks.json}
+    resource-client:
+      service-token: ${CIVICFLOW_APPOINTMENT_RESOURCE_SERVICE_JWT:}
+    stock:
+      reservation-ttl: ${CIVICFLOW_RESERVATION_TTL:10m}
+      retention-after-close: ${CIVICFLOW_STOCK_RETENTION:2d}
+    preheat:
+      enabled: ${CIVICFLOW_STOCK_PREHEAT_ENABLED:true}
+      fixed-delay: ${CIVICFLOW_STOCK_PREHEAT_DELAY:60s}
+      future-window: ${CIVICFLOW_STOCK_PREHEAT_WINDOW:24h}
+      page-size: ${CIVICFLOW_STOCK_PREHEAT_PAGE_SIZE:100}

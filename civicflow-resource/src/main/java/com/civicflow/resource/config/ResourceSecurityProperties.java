@@ -17,6 +17,7 @@ public class ResourceSecurityProperties {
     public static class Jwt {
         private String issuer = "https://auth.civicflow.local";
         private String audience = "civicflow-api";
+        private String serviceAudience = "civicflow-resource";
         private String jwkSetUri = "http://civicflow-auth:8081/.well-known/jwks.json";
         private Duration clockSkew = Duration.ofSeconds(30);
         private boolean allowTestDecoder;

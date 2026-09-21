@@ -53,6 +53,12 @@ public interface ResourceSlotMapper extends BaseMapper<ResourceSlotEntity> {
             @Param("dateTo") LocalDate dateTo,
             @Param("status") SlotStatus status);
 
+    List<ResourceSlotEntity> selectPreheatCandidates(
+            @Param("releaseFrom") Instant releaseFrom,
+            @Param("releaseTo") Instant releaseTo,
+            @Param("afterId") long afterId,
+            @Param("size") int size);
+
     int updateDraftDetails(
             @Param("id") long id,
             @Param("outletId") long outletId,

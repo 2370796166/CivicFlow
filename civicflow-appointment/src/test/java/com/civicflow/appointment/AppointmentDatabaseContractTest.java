@@ -8,6 +8,7 @@ import com.civicflow.appointment.entity.AppointmentOperationLogEntity;
 import com.civicflow.appointment.entity.AppointmentOrderEntity;
 import com.civicflow.appointment.entity.MessageConsumeRecordEntity;
 import com.civicflow.appointment.entity.OutboxEventEntity;
+import com.civicflow.appointment.entity.StockAdminAuditEntity;
 import com.civicflow.appointment.entity.StockReconciliationDetailEntity;
 import com.civicflow.appointment.entity.StockReconciliationRunEntity;
 import com.civicflow.appointment.entity.StockReleaseRecordEntity;
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.Test;
 
 class AppointmentDatabaseContractTest {
     private static final String DDL = migration("V1__create_appointment_schema.sql");
+    private static final String AUDIT_DDL = migration("V2__create_stock_admin_audit.sql");
 
     @Test
     void entitiesMirrorAllAppointmentTables() {
@@ -55,17 +57,28 @@ class AppointmentDatabaseContractTest {
         assertEquals("APPT_410_RESERVATION_GONE", AppointmentErrorCode.RESERVATION_GONE.code());
     }
 
+    @Test
+    void stockAdminAuditEntityMatchesAppendOnlyAuditTable() {
+        assertEquals(
+                columnsFor(AUDIT_DDL, "stock_admin_audit"), fieldsOf(StockAdminAuditEntity.class));
+        assertTrue(AUDIT_DDL.contains("KEY idx_stock_admin_audit_request (request_id, id)"));
+    }
+
     private static void assertEntityMatchesTable(Class<?> entityType, String table) {
         assertEquals(columnsFor(table), fieldsOf(entityType), table);
     }
 
     private static Set<String> columnsFor(String table) {
+        return columnsFor(DDL, table);
+    }
+
+    private static Set<String> columnsFor(String ddl, String table) {
         Matcher tableMatcher =
                 Pattern.compile(
                                 "(?ms)CREATE TABLE "
                                         + Pattern.quote(table)
                                         + " \\((.*?)^\\) ENGINE")
-                        .matcher(DDL);
+                        .matcher(ddl);
         assertTrue(tableMatcher.find(), table);
         Matcher columnMatcher =
                 Pattern.compile(
