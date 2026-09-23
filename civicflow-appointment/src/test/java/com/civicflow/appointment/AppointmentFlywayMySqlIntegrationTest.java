@@ -23,14 +23,14 @@ class AppointmentFlywayMySqlIntegrationTest {
                     .withPassword("integration-only-password");
 
     @Test
-    void migratesFreshMySqlSchemaIncludingStockAudit() throws Exception {
+    void migratesFreshMySqlSchemaIncludingReservationProjection() throws Exception {
         var result =
                 Flyway.configure()
                         .dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
                         .locations("classpath:db/migration")
                         .load()
                         .migrate();
-        assertEquals(2, result.migrationsExecuted);
+        assertEquals(4, result.migrationsExecuted);
 
         try (Connection connection = MYSQL.createConnection("");
                 Statement statement = connection.createStatement();
@@ -38,9 +38,11 @@ class AppointmentFlywayMySqlIntegrationTest {
                         statement.executeQuery(
                                 "SELECT COUNT(*) FROM information_schema.tables "
                                         + "WHERE table_schema = DATABASE() "
-                                        + "AND table_name = 'stock_admin_audit'")) {
+                                        + "AND table_name IN "
+                                        + "('stock_admin_audit','appointment_reservation_request',"
+                                        + "'appointment_command_idempotency')")) {
             assertTrue(resultSet.next());
-            assertEquals(1, resultSet.getInt(1));
+            assertEquals(3, resultSet.getInt(1));
         }
     }
 }

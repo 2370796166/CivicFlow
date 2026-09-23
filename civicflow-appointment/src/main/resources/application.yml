@@ -3,6 +3,15 @@ spring:
     name: civicflow-appointment
   profiles:
     default: dev
+  rabbitmq:
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        default-requeue-rejected: false
 
 mybatis-plus:
   configuration:
@@ -32,6 +41,18 @@ civicflow:
     stock:
       reservation-ttl: ${CIVICFLOW_RESERVATION_TTL:10m}
       retention-after-close: ${CIVICFLOW_STOCK_RETENTION:2d}
+    reservation:
+      confirm-deadline: ${CIVICFLOW_APPOINTMENT_CONFIRM_DEADLINE:5m}
+      publish-confirm-timeout: ${CIVICFLOW_APPOINTMENT_PUBLISH_CONFIRM_TIMEOUT:3s}
+      publish-max-attempts: ${CIVICFLOW_APPOINTMENT_PUBLISH_MAX_ATTEMPTS:3}
+      consumer-max-attempts: ${CIVICFLOW_APPOINTMENT_CONSUMER_MAX_ATTEMPTS:3}
+      poll-after-ms: ${CIVICFLOW_APPOINTMENT_POLL_AFTER_MS:500}
+    recovery:
+      enabled: ${CIVICFLOW_APPOINTMENT_RECOVERY_ENABLED:true}
+      fixed-delay: ${CIVICFLOW_APPOINTMENT_RECOVERY_DELAY:10s}
+      retry-delay: ${CIVICFLOW_APPOINTMENT_RECOVERY_RETRY_DELAY:30s}
+      lease: ${CIVICFLOW_APPOINTMENT_RECOVERY_LEASE:30s}
+      batch-size: ${CIVICFLOW_APPOINTMENT_RECOVERY_BATCH_SIZE:50}
     preheat:
       enabled: ${CIVICFLOW_STOCK_PREHEAT_ENABLED:true}
       fixed-delay: ${CIVICFLOW_STOCK_PREHEAT_DELAY:60s}

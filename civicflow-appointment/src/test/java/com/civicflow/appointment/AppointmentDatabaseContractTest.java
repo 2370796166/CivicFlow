@@ -4,8 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.civicflow.appointment.entity.ActiveBookingGuardEntity;
+import com.civicflow.appointment.entity.AppointmentCommandIdempotencyEntity;
 import com.civicflow.appointment.entity.AppointmentOperationLogEntity;
 import com.civicflow.appointment.entity.AppointmentOrderEntity;
+import com.civicflow.appointment.entity.AppointmentReservationRequestEntity;
 import com.civicflow.appointment.entity.MessageConsumeRecordEntity;
 import com.civicflow.appointment.entity.OutboxEventEntity;
 import com.civicflow.appointment.entity.StockAdminAuditEntity;
@@ -26,6 +28,9 @@ import org.junit.jupiter.api.Test;
 class AppointmentDatabaseContractTest {
     private static final String DDL = migration("V1__create_appointment_schema.sql");
     private static final String AUDIT_DDL = migration("V2__create_stock_admin_audit.sql");
+    private static final String RESERVATION_DDL = migration("V3__create_reservation_request.sql");
+    private static final String COMMAND_DDL =
+            migration("V4__create_appointment_command_idempotency.sql");
 
     @Test
     void entitiesMirrorAllAppointmentTables() {
@@ -34,6 +39,9 @@ class AppointmentDatabaseContractTest {
         assertEntityMatchesTable(AppointmentOperationLogEntity.class, "appointment_operation_log");
         assertEntityMatchesTable(MessageConsumeRecordEntity.class, "message_consume_record");
         assertEntityMatchesTable(OutboxEventEntity.class, "outbox_event");
+        assertEquals(
+                columnsFor(COMMAND_DDL, "appointment_command_idempotency"),
+                fieldsOf(AppointmentCommandIdempotencyEntity.class));
         assertEntityMatchesTable(StockReleaseRecordEntity.class, "stock_release_record");
         assertEntityMatchesTable(StockReconciliationRunEntity.class, "stock_reconciliation_run");
         assertEntityMatchesTable(
@@ -48,6 +56,7 @@ class AppointmentDatabaseContractTest {
         assertTrue(DDL.contains("UNIQUE KEY uk_outbox_event (event_id)"));
         assertTrue(DDL.contains("UNIQUE KEY uk_stock_release_reservation (reservation_id)"));
         assertTrue(DDL.contains("KEY idx_appointment_timeout"));
+        assertTrue(COMMAND_DDL.contains("UNIQUE KEY uk_appt_command_key"));
     }
 
     @Test
@@ -62,6 +71,18 @@ class AppointmentDatabaseContractTest {
         assertEquals(
                 columnsFor(AUDIT_DDL, "stock_admin_audit"), fieldsOf(StockAdminAuditEntity.class));
         assertTrue(AUDIT_DDL.contains("KEY idx_stock_admin_audit_request (request_id, id)"));
+    }
+
+    @Test
+    void reservationRequestPersistsHttpIdempotencyAndRecoveryProjection() {
+        assertEquals(
+                columnsFor(RESERVATION_DDL, "appointment_reservation_request"),
+                fieldsOf(AppointmentReservationRequestEntity.class));
+        assertTrue(
+                RESERVATION_DDL.contains("UNIQUE KEY uk_reservation_request_id (reservation_id)"));
+        assertTrue(
+                RESERVATION_DDL.contains(
+                        "UNIQUE KEY uk_reservation_request_idempotency (user_id, idempotency_key_hash)"));
     }
 
     private static void assertEntityMatchesTable(Class<?> entityType, String table) {
@@ -82,7 +103,7 @@ class AppointmentDatabaseContractTest {
         assertTrue(tableMatcher.find(), table);
         Matcher columnMatcher =
                 Pattern.compile(
-                                "(?m)^    ([a-z][a-z0-9_]*) (?:BIGINT|INT|SMALLINT|VARCHAR|CHAR|BINARY|VARBINARY|DATE|TIME|DATETIME|JSON)")
+                                "(?m)^    ([a-z][a-z0-9_]*) (?:BIGINT|INT|SMALLINT|VARCHAR|CHAR|BINARY|VARBINARY|DATE|TIME|DATETIME|JSON|LONGTEXT)")
                         .matcher(tableMatcher.group(1));
         return columnMatcher.results().map(result -> result.group(1)).collect(Collectors.toSet());
     }

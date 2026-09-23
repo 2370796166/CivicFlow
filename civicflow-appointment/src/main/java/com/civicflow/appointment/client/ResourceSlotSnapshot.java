@@ -9,6 +9,8 @@ public record ResourceSlotSnapshot(
         String slotId,
         String outletId,
         String itemId,
+        String outletName,
+        String itemName,
         LocalDate serviceDate,
         LocalTime startTime,
         LocalTime endTime,

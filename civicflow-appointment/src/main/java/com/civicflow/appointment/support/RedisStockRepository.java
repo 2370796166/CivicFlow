@@ -13,6 +13,8 @@ public class RedisStockRepository {
     private static final DefaultRedisScript<List> ADJUST = script("lua/adjust_stock.lua");
     private static final DefaultRedisScript<List> RESERVE = script("lua/reserve_stock.lua");
     private static final DefaultRedisScript<List> COMPENSATE = script("lua/compensate_stock.lua");
+    private static final DefaultRedisScript<List> MARK_PUBLISHED = script("lua/mark_published.lua");
+    private static final DefaultRedisScript<List> MARK_PERSISTED = script("lua/mark_persisted.lua");
 
     private final StringRedisTemplate redisTemplate;
     private final RedisKeyFactory keyFactory;
@@ -112,6 +114,52 @@ public class RedisStockRepository {
                 now.toEpochMilli(),
                 snapshot.configVersion(),
                 markerExpiresAt.toEpochMilli());
+    }
+
+    public LuaResult markPublished(
+            SlotStockSnapshot snapshot,
+            long userId,
+            String reservationId,
+            String eventId,
+            Instant now,
+            Instant nextRecoveryAt) {
+        RedisKeyFactory.ReservationKeys keys =
+                keyFactory.reservationKeys(
+                        snapshot.itemId(),
+                        snapshot.serviceDate(),
+                        snapshot.slotId(),
+                        userId,
+                        reservationId);
+        return execute(
+                MARK_PUBLISHED,
+                List.of(keys.reservation(), keys.pending(), keys.stock()),
+                reservationId,
+                eventId,
+                now.toEpochMilli(),
+                nextRecoveryAt.toEpochMilli());
+    }
+
+    public LuaResult markPersisted(
+            SlotStockSnapshot snapshot,
+            long userId,
+            String reservationId,
+            long appointmentId,
+            Instant now,
+            Instant retentionUntil) {
+        RedisKeyFactory.ReservationKeys keys =
+                keyFactory.reservationKeys(
+                        snapshot.itemId(),
+                        snapshot.serviceDate(),
+                        snapshot.slotId(),
+                        userId,
+                        reservationId);
+        return execute(
+                MARK_PERSISTED,
+                List.of(keys.reservation(), keys.pending(), keys.stock()),
+                reservationId,
+                appointmentId,
+                now.toEpochMilli(),
+                retentionUntil.toEpochMilli());
     }
 
     private LuaResult execute(

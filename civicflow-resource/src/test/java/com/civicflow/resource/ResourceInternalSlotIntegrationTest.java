@@ -28,6 +28,20 @@ class ResourceInternalSlotIntegrationTest {
     @BeforeEach
     void seedSlot() {
         jdbcTemplate.update("DELETE FROM resource_slot");
+        jdbcTemplate.update("DELETE FROM service_item");
+        jdbcTemplate.update("DELETE FROM service_outlet");
+        jdbcTemplate.update(
+                """
+                INSERT INTO service_outlet
+                  (id,code,name,address,status,version,deleted)
+                VALUES (101,'OUTLET-101','东城政务中心','测试地址','ENABLED',0,0)
+                """);
+        jdbcTemplate.update(
+                """
+                INSERT INTO service_item
+                  (id,code,name,default_duration_minutes,status,version,deleted)
+                VALUES (201,'ITEM-201','户籍服务',30,'ENABLED',0,0)
+                """);
         jdbcTemplate.update(
                 """
                 INSERT INTO resource_slot
@@ -62,6 +76,8 @@ class ResourceInternalSlotIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.slotId").value(Long.toString(SLOT_ID)))
                 .andExpect(jsonPath("$.data.totalQuota").value(8))
+                .andExpect(jsonPath("$.data.outletName").value("东城政务中心"))
+                .andExpect(jsonPath("$.data.itemName").value("户籍服务"))
                 .andExpect(jsonPath("$.data.configVersion").value(3));
 
         mockMvc.perform(

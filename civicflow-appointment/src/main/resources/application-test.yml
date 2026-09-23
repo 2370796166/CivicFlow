@@ -16,6 +16,10 @@ spring:
     password:
   flyway:
     enabled: false
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-h2.sql
   rabbitmq:
     listener:
       simple:
@@ -29,6 +33,10 @@ civicflow:
       allow-test-decoder: true
     preheat:
       enabled: false
+    recovery:
+      enabled: false
+    resource-client:
+      url: http://localhost
 
 management:
   health:

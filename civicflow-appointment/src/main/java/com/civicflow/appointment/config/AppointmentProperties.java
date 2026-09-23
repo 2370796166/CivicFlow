@@ -20,6 +20,8 @@ public class AppointmentProperties {
     @Valid private Jwt jwt = new Jwt();
     @Valid private ResourceClient resourceClient = new ResourceClient();
     @Valid private Stock stock = new Stock();
+    @Valid private Reservation reservation = new Reservation();
+    @Valid private Recovery recovery = new Recovery();
     @Valid private Preheat preheat = new Preheat();
 
     @Getter
@@ -43,6 +45,38 @@ public class AppointmentProperties {
     public static class Stock {
         @NotNull private Duration reservationTtl = Duration.ofMinutes(10);
         @NotNull private Duration retentionAfterClose = Duration.ofDays(2);
+    }
+
+    @Getter
+    @Setter
+    public static class Reservation {
+        @NotNull private Duration confirmDeadline = Duration.ofMinutes(5);
+        @NotNull private Duration publishConfirmTimeout = Duration.ofSeconds(3);
+
+        @Min(1)
+        @Max(10)
+        private int publishMaxAttempts = 3;
+
+        @Min(1)
+        @Max(10)
+        private int consumerMaxAttempts = 3;
+
+        @Min(100)
+        @Max(10000)
+        private int pollAfterMs = 500;
+    }
+
+    @Getter
+    @Setter
+    public static class Recovery {
+        private boolean enabled = true;
+        @NotNull private Duration fixedDelay = Duration.ofSeconds(10);
+        @NotNull private Duration retryDelay = Duration.ofSeconds(30);
+        @NotNull private Duration lease = Duration.ofSeconds(30);
+
+        @Min(1)
+        @Max(500)
+        private int batchSize = 50;
     }
 
     @Getter

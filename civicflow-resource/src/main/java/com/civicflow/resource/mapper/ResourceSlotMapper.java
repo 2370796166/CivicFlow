@@ -1,6 +1,7 @@
 package com.civicflow.resource.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.civicflow.resource.dto.response.SlotSnapshotRow;
 import com.civicflow.resource.entity.ResourceSlotEntity;
 import com.civicflow.resource.enums.SlotStatus;
 import java.time.Instant;
@@ -17,6 +18,8 @@ public interface ResourceSlotMapper extends BaseMapper<ResourceSlotEntity> {
     long countFutureByWindow(@Param("windowId") long windowId, @Param("today") LocalDate today);
 
     ResourceSlotEntity selectActiveById(@Param("id") long id);
+
+    SlotSnapshotRow selectSnapshotById(@Param("id") long id);
 
     ResourceSlotEntity selectByIdForUpdate(@Param("id") long id);
 
@@ -53,7 +56,7 @@ public interface ResourceSlotMapper extends BaseMapper<ResourceSlotEntity> {
             @Param("dateTo") LocalDate dateTo,
             @Param("status") SlotStatus status);
 
-    List<ResourceSlotEntity> selectPreheatCandidates(
+    List<SlotSnapshotRow> selectPreheatSnapshotCandidates(
             @Param("releaseFrom") Instant releaseFrom,
             @Param("releaseTo") Instant releaseTo,
             @Param("afterId") long afterId,

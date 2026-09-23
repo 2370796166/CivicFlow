@@ -15,6 +15,12 @@ public enum AppointmentErrorCode implements GlobalErrorCode {
     STOCK_INVARIANT_BROKEN("APPT_409_STOCK_INVARIANT_BROKEN", "Slot stock requires reconciliation"),
     RESERVATION_GONE("APPT_410_RESERVATION_GONE", "Reservation has expired or been compensated"),
     SLOT_NOT_OPEN("APPT_422_SLOT_NOT_OPEN", "Resource slot is not open"),
+    PUBLISH_FAILED(
+            "APPT_503_PUBLISH_FAILED", "Reservation publication failed and stock was released"),
+    PUBLISH_UNKNOWN("APPT_503_PUBLISH_UNKNOWN", "Reservation publication result is not yet known"),
+    COMPENSATION_PENDING("APPT_503_COMPENSATION_PENDING", "Stock compensation is pending retry"),
+    MESSAGE_CONFLICT(
+            "APPT_409_MESSAGE_CONFLICT", "Message idempotency key is bound to another payload"),
     QR_EXPIRED("SECURITY_410_QR_EXPIRED", "Check-in token has expired or is no longer current");
 
     private final String code;

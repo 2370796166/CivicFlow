@@ -4,7 +4,7 @@ import com.civicflow.common.api.CommonErrorCode;
 import com.civicflow.common.exception.BusinessException;
 import com.civicflow.resource.dto.response.SlotCandidatePageResponse;
 import com.civicflow.resource.dto.response.SlotSnapshotResponse;
-import com.civicflow.resource.entity.ResourceSlotEntity;
+import com.civicflow.resource.dto.response.SlotSnapshotRow;
 import com.civicflow.resource.mapper.ResourceSlotMapper;
 import com.civicflow.resource.service.ResourceSlotSnapshotService;
 import java.time.Instant;
@@ -23,11 +23,11 @@ public class ResourceSlotSnapshotServiceImpl implements ResourceSlotSnapshotServ
 
     @Override
     public SlotSnapshotResponse get(long slotId) {
-        ResourceSlotEntity entity = mapper.selectActiveById(slotId);
-        if (entity == null) {
+        SlotSnapshotRow row = mapper.selectSnapshotById(slotId);
+        if (row == null) {
             throw new BusinessException(CommonErrorCode.NOT_FOUND);
         }
-        return toResponse(entity);
+        return toResponse(row);
     }
 
     @Override
@@ -41,37 +41,36 @@ public class ResourceSlotSnapshotServiceImpl implements ResourceSlotSnapshotServ
                 || size > 500) {
             throw new BusinessException(CommonErrorCode.VALIDATION);
         }
-        List<ResourceSlotEntity> rows =
-                mapper.selectPreheatCandidates(releaseFrom, releaseTo, afterId, size + 1);
+        List<SlotSnapshotRow> rows =
+                mapper.selectPreheatSnapshotCandidates(releaseFrom, releaseTo, afterId, size + 1);
         boolean hasMore = rows.size() > size;
-        List<ResourceSlotEntity> page = hasMore ? rows.subList(0, size) : rows;
+        List<SlotSnapshotRow> page = hasMore ? rows.subList(0, size) : rows;
         String nextCursor =
                 page.isEmpty()
                         ? Long.toString(afterId)
-                        : page.get(page.size() - 1).getId().toString();
+                        : page.get(page.size() - 1).slotId().toString();
         return new SlotCandidatePageResponse(
                 page.stream().map(ResourceSlotSnapshotServiceImpl::toResponse).toList(),
                 nextCursor,
                 hasMore);
     }
 
-    private static SlotSnapshotResponse toResponse(ResourceSlotEntity entity) {
-        Instant closeAt =
-                entity.getServiceDate()
-                        .atTime(entity.getEndTime())
-                        .atZone(BUSINESS_ZONE)
-                        .toInstant();
+    private static SlotSnapshotResponse toResponse(SlotSnapshotRow row) {
+        Instant closeAt = row.serviceDate().atTime(row.endTime()).atZone(BUSINESS_ZONE).toInstant();
         return new SlotSnapshotResponse(
-                entity.getId().toString(),
-                entity.getOutletId().toString(),
-                entity.getItemId().toString(),
-                entity.getServiceDate(),
-                entity.getStartTime(),
-                entity.getEndTime(),
-                entity.getTotalQuota(),
-                entity.getReleaseAt(),
+                row.slotId().toString(),
+                row.outletId().toString(),
+                row.itemId().toString(),
+                row.outletName(),
+                row.itemName(),
+                row.serviceDate(),
+                row.startTime(),
+                row.endTime(),
+                row.totalQuota(),
+                row.releaseAt(),
                 closeAt,
-                entity.getStatus().name(),
-                entity.getConfigVersion());
+                row.status().name(),
+                row.configVersion());
     }
+
 }
