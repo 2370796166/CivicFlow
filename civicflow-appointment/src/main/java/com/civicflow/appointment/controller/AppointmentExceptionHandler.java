@@ -73,6 +73,9 @@ public class AppointmentExceptionHandler {
         if (code.contains("_409_")) {
             return HttpStatus.CONFLICT;
         }
+        if (code.contains("_410_")) {
+            return HttpStatus.GONE;
+        }
         if (code.contains("_422_")) {
             return HttpStatus.UNPROCESSABLE_ENTITY;
         }

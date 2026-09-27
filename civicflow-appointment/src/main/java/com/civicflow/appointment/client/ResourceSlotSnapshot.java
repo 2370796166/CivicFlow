@@ -16,6 +16,8 @@ public record ResourceSlotSnapshot(
         LocalTime endTime,
         int totalQuota,
         Instant releaseAt,
+        Instant checkInStart,
+        Instant checkInEnd,
         Instant closeAt,
         String status,
         long configVersion) {

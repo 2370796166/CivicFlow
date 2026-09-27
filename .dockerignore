@@ -1,0 +1,12 @@
+**/target
+**/node_modules
+**/dist
+.git
+.idea
+.local
+.pnpm-store
+**/.env
+**/.env.*
+**/*.log
+docs
+**/__pycache__

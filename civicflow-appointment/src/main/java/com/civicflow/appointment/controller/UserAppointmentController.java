@@ -6,12 +6,14 @@ import com.civicflow.appointment.dto.request.CancelAppointmentRequest;
 import com.civicflow.appointment.dto.request.ConfirmAppointmentRequest;
 import com.civicflow.appointment.dto.request.CreateReservationRequest;
 import com.civicflow.appointment.dto.response.AppointmentResponse;
+import com.civicflow.appointment.dto.response.CheckInTokenResponse;
 import com.civicflow.appointment.dto.response.ReservationCreateResponse;
 import com.civicflow.appointment.dto.response.ReservationStatusResponse;
 import com.civicflow.appointment.enums.AppointmentStatus;
 import com.civicflow.appointment.error.AppointmentErrorCode;
 import com.civicflow.appointment.service.AppointmentQueryService;
 import com.civicflow.appointment.service.AppointmentStateService;
+import com.civicflow.appointment.service.CheckInTokenService;
 import com.civicflow.appointment.service.ReservationWorkflowService;
 import com.civicflow.common.api.ApiResponse;
 import com.civicflow.common.api.CommonErrorCode;
@@ -47,14 +49,17 @@ public class UserAppointmentController {
     private final ReservationWorkflowService workflowService;
     private final AppointmentQueryService queryService;
     private final AppointmentStateService stateService;
+    private final CheckInTokenService checkIn;
 
     public UserAppointmentController(
             ReservationWorkflowService workflowService,
             AppointmentQueryService queryService,
-            AppointmentStateService stateService) {
+            AppointmentStateService stateService,
+            CheckInTokenService checkIn) {
         this.workflowService = workflowService;
         this.queryService = queryService;
         this.stateService = stateService;
+        this.checkIn = checkIn;
     }
 
     @PostMapping("/reservations")
@@ -153,6 +158,18 @@ public class UserAppointmentController {
                         key,
                         traceId),
                 traceId);
+    }
+
+    @PostMapping("/{appointmentId}/check-in-token")
+    ApiResponse<CheckInTokenResponse> checkInToken(
+            @PathVariable @Positive long appointmentId,
+            @RequestBody @Valid com.civicflow.appointment.dto.request.CheckInTokenRequest body,
+            JwtAuthenticationToken authentication,
+            HttpServletRequest request) {
+        return ApiResponse.success(
+                checkIn.issue(
+                        SecurityPrincipals.userId(authentication), appointmentId, body.outletId()),
+                RequestIdFilter.current(request));
     }
 
     private static GlobalErrorCode dependencyError(String failureCode) {

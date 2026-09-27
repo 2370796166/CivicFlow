@@ -21,4 +21,10 @@ public interface ResourceSlotClient {
             @RequestParam("releaseTo") Instant releaseTo,
             @RequestParam("afterId") long afterId,
             @RequestParam("size") int size);
+
+    @GetMapping("/internal/v1/resource/slots/reconciliation-candidates")
+    ApiResponse<ResourceSlotCandidatePage> getReconciliationCandidates(
+            @RequestParam("at") Instant at,
+            @RequestParam("afterId") long afterId,
+            @RequestParam("size") int size);
 }

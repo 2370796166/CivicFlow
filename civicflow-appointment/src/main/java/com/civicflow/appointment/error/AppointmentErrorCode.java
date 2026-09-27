@@ -21,7 +21,8 @@ public enum AppointmentErrorCode implements GlobalErrorCode {
     COMPENSATION_PENDING("APPT_503_COMPENSATION_PENDING", "Stock compensation is pending retry"),
     MESSAGE_CONFLICT(
             "APPT_409_MESSAGE_CONFLICT", "Message idempotency key is bound to another payload"),
-    QR_EXPIRED("SECURITY_410_QR_EXPIRED", "Check-in token has expired or is no longer current");
+    QR_EXPIRED("SECURITY_410_QR_EXPIRED", "Check-in token has expired or is no longer current"),
+    CHECKIN_WINDOW("QUEUE_422_CHECKIN_WINDOW", "Check-in window, date, or outlet does not match");
 
     private final String code;
     private final String message;

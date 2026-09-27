@@ -212,6 +212,22 @@ class RedisStockLuaIntegrationTest {
     }
 
     @Test
+    void terminalCleanupKeepsConsumedStockAndCannotDeleteNewReservation() {
+        SlotStockSnapshot snapshot = snapshot(1008, 3, RELEASE_AT, 1);
+        initialize(snapshot);
+        ReservationStockService service = serviceAt(AFTER_RELEASE);
+        service.reserve(snapshot, 6001, "completed-reservation");
+        repository.releaseActiveIfOwned(
+                snapshot.itemId(), snapshot.serviceDate(), 6001, "completed-reservation");
+        assertEquals("2", remaining(snapshot));
+        service.reserve(snapshot, 6001, "new-reservation");
+        repository.releaseActiveIfOwned(
+                snapshot.itemId(), snapshot.serviceDate(), 6001, "completed-reservation");
+        assertEquals("new-reservation", repository.activeReservation(snapshot, 6001));
+        assertEquals("1", remaining(snapshot));
+    }
+
+    @Test
     void refusesToInitializeMissingStockAfterRelease() {
         SlotStockSnapshot snapshot = snapshot(1007, 3, RELEASE_AT, 1);
         LuaResult result =

@@ -19,6 +19,9 @@ public final class AppointmentMessaging {
     public static final String TIMEOUT_CHECK_DLQ = "cf.appointment.confirm.timeout.q.dlq";
     public static final String TIMEOUT_DLQ_ROUTING_KEY = "cf.appointment.confirm.timeout.q.dead";
     public static final String TIMEOUT_EVENT_TYPE = "appointment.confirm.timeout.requested";
+    public static final String CHECKIN_CLAIMED_EVENT_TYPE = "appointment.check-in.claimed";
+    public static final String CHECKIN_CLAIMED_ROUTING_KEY = "appointment.check-in.claimed.v1";
+    public static final String CHECKIN_CLAIMED_QUEUE = "cf.queue.checkin-claim.q";
 
     private AppointmentMessaging() {}
 }

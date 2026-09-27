@@ -30,7 +30,7 @@ class AppointmentFlywayMySqlIntegrationTest {
                         .locations("classpath:db/migration")
                         .load()
                         .migrate();
-        assertEquals(4, result.migrationsExecuted);
+        assertEquals(5, result.migrationsExecuted);
 
         try (Connection connection = MYSQL.createConnection("");
                 Statement statement = connection.createStatement();
@@ -40,9 +40,10 @@ class AppointmentFlywayMySqlIntegrationTest {
                                         + "WHERE table_schema = DATABASE() "
                                         + "AND table_name IN "
                                         + "('stock_admin_audit','appointment_reservation_request',"
-                                        + "'appointment_command_idempotency')")) {
+                                        + "'appointment_command_idempotency','stock_reconciliation_run',"
+                                        + "'stock_reconciliation_detail')")) {
             assertTrue(resultSet.next());
-            assertEquals(3, resultSet.getInt(1));
+            assertEquals(5, resultSet.getInt(1));
         }
     }
 }

@@ -29,6 +29,9 @@ public class StockReconciliationRunEntity {
     private Instant startedAt;
     private Instant completedAt;
     private Long actorId;
+    private byte[] idempotencyKeyHash;
+    private byte[] requestHash;
+    private String reportJson;
     private Instant createdAt;
     private Instant updatedAt;
 }

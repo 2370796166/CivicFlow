@@ -118,6 +118,12 @@ class GatewayApplicationTest {
         assertThat(routes).hasSize(4);
         assertThat(
                         routeDefinitionLocator.getRouteDefinitions().collectList().block().stream()
+                                .filter(route -> "civicflow-queue".equals(route.getId()))
+                                .flatMap(route -> route.getPredicates().stream())
+                                .flatMap(predicate -> predicate.getArgs().values().stream()))
+                .anyMatch(value -> value.contains("/api/v1/staff/check-ins"));
+        assertThat(
+                        routeDefinitionLocator.getRouteDefinitions().collectList().block().stream()
                                 .filter(route -> "civicflow-appointment".equals(route.getId()))
                                 .flatMap(route -> route.getPredicates().stream())
                                 .flatMap(predicate -> predicate.getArgs().values().stream()))

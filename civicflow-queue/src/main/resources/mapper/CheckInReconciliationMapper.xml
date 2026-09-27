@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.civicflow.queue.mapper.CheckInReconciliationMapper">
+    <select id="selectDue" resultType="com.civicflow.queue.entity.CheckinReconciliationRecordEntity">
+        SELECT * FROM checkin_reconciliation_record WHERE status IN ('PENDING','TICKET_CREATED','NEED_RECONCILE')
+        AND next_attempt_at &lt;= CURRENT_TIMESTAMP(3) ORDER BY next_attempt_at,id LIMIT #{limit}
+    </select>
+    <update id="markLinked">
+        UPDATE checkin_reconciliation_record SET status='LINKED',updated_at=CURRENT_TIMESTAMP(3)
+        WHERE id=#{id} AND status IN ('PENDING','TICKET_CREATED','NEED_RECONCILE')
+    </update>
+    <update id="defer">
+        UPDATE checkin_reconciliation_record SET status='NEED_RECONCILE',attempts=attempts+1,
+        next_attempt_at=DATE_ADD(CURRENT_TIMESTAMP(3),INTERVAL 30 SECOND),last_error_code=#{error},
+        updated_at=CURRENT_TIMESTAMP(3) WHERE id=#{id} AND status IN ('PENDING','TICKET_CREATED','NEED_RECONCILE')
+    </update>
+</mapper>

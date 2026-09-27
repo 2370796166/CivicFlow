@@ -9,4 +9,6 @@ public interface ResourceSlotSnapshotService {
 
     SlotCandidatePageResponse candidates(
             Instant releaseFrom, Instant releaseTo, long afterId, int size);
+
+    SlotCandidatePageResponse reconciliationCandidates(Instant at, long afterId, int size);
 }

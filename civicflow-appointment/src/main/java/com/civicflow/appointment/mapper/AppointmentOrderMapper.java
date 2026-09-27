@@ -37,4 +37,29 @@ public interface AppointmentOrderMapper extends BaseMapper<AppointmentOrderEntit
     int expire(@Param("id") long id);
 
     List<Long> selectExpiredIds(@Param("limit") int limit);
+
+    int setQr(
+            @Param("id") long id,
+            @Param("userId") long userId,
+            @Param("hash") byte[] hash,
+            @Param("expiresAt") Instant expiresAt,
+            @Param("keyId") String keyId);
+
+    int claimCheckIn(
+            @Param("id") long id,
+            @Param("userId") long userId,
+            @Param("outletId") long outletId,
+            @Param("hash") byte[] hash,
+            @Param("claimId") String claimId);
+
+    int linkTicket(
+            @Param("id") long id,
+            @Param("claimId") String claimId,
+            @Param("ticketId") long ticketId);
+
+    int applyQueueState(
+            @Param("id") long id,
+            @Param("ticketId") long ticketId,
+            @Param("from") String from,
+            @Param("to") String to);
 }

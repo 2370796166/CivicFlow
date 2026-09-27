@@ -25,7 +25,8 @@
     </select>
     <sql id="snapshotColumns">
         s.id AS slot_id,s.outlet_id,s.item_id,o.name AS outlet_name,i.name AS item_name,
-        s.service_date,s.start_time,s.end_time,s.total_quota,s.release_at,s.status,s.config_version
+        s.service_date,s.start_time,s.end_time,s.total_quota,s.release_at,
+        s.check_in_start,s.check_in_end,s.status,s.config_version
     </sql>
     <select id="selectSnapshotById" resultType="com.civicflow.resource.dto.response.SlotSnapshotRow">
         SELECT <include refid="snapshotColumns"/> FROM resource_slot s
@@ -75,6 +76,17 @@
         WHERE s.deleted = 0 AND s.id &gt; #{afterId}
           AND s.release_at &gt;= #{releaseFrom} AND s.release_at &lt; #{releaseTo}
           AND s.status IN ('SCHEDULED','SUSPENDED')
+        ORDER BY s.id LIMIT #{size}
+    </select>
+    <select id="selectReconciliationCandidates" resultType="com.civicflow.resource.dto.response.SlotSnapshotRow">
+        SELECT <include refid="snapshotColumns"/> FROM resource_slot s
+        JOIN service_outlet o ON o.id = s.outlet_id AND o.deleted = 0
+        JOIN service_item i ON i.id = s.item_id AND i.deleted = 0
+        WHERE s.deleted = 0 AND s.id &gt; #{afterId}
+          AND s.release_at &lt;= #{at}
+          AND (s.service_date &gt; #{today}
+               OR (s.service_date = #{today} AND s.end_time &gt; #{localTime}))
+          AND s.status IN ('OPEN','SCHEDULED','SUSPENDED')
         ORDER BY s.id LIMIT #{size}
     </select>
     <update id="updateDraftDetails">

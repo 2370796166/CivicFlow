@@ -23,7 +23,7 @@ spring:
             - id: civicflow-queue
               uri: lb://civicflow-queue
               predicates:
-                - Path=/api/v1/user/check-ins,/api/v1/user/queue-tickets/**,/api/v1/staff/work-sessions,/api/v1/staff/work-sessions/**,/api/v1/staff/queue-tickets/**,/api/v1/admin/queues/**
+                - Path=/api/v1/user/check-ins,/api/v1/staff/check-ins,/api/v1/user/queue-tickets/**,/api/v1/staff/work-sessions,/api/v1/staff/work-sessions/**,/api/v1/staff/queue-tickets/**,/api/v1/admin/queues/**
 
 server:
   port: ${CIVICFLOW_GATEWAY_PORT:8080}

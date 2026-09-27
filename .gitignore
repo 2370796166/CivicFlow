@@ -2,6 +2,17 @@
 target/
 *.log
 
+# Frontend / Python caches and generated test output
+node_modules/
+.pnpm-store/
+dist/
+coverage/
+test-results/
+playwright-report/
+*.tsbuildinfo
+__pycache__/
+*.py[cod]
+
 # IntelliJ IDEA
 .idea/
 *.iml
@@ -20,6 +31,7 @@ Thumbs.db
 
 # Local environment and secrets
 .env
+.local/
 .env.*
 !.env.example
 

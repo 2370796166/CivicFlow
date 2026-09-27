@@ -39,5 +39,6 @@ redis.call('HSET', KEYS[1],
     'closeAtEpochMs', ARGV[5],
     'configVersion', ARGV[6],
     'updatedAtEpochMs', ARGV[7])
+redis.call('HINCRBY', KEYS[1], 'mutationSeq', 1)
 redis.call('PEXPIREAT', KEYS[1], ARGV[8])
 return {0, newRemaining, incomingVersion}

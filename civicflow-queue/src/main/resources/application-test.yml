@@ -29,3 +29,11 @@ management:
       enabled: false
     rabbit:
       enabled: false
+
+civicflow:
+  queue:
+    appointment-url: http://localhost
+    resource-url: http://localhost
+    jwt:
+      allow-test-decoder: true
+    recovery-enabled: false

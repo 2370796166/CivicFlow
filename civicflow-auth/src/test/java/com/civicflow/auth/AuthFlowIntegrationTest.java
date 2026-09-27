@@ -51,6 +51,31 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
+    void existingShortPasswordCanLogInWithoutWeakeningUserCreation() throws Exception {
+        jdbcTemplate.update(
+                "UPDATE sys_user SET password_hash = ? WHERE id = 100",
+                passwordEncoder.encode("1234"));
+        JsonNode loggedIn = login("admin", "1234", 200);
+        login("admin", "4321", 401);
+        mockMvc.perform(
+                        post("/api/v1/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"loginName\":\"admin\",\"password\":\"\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON_400_VALIDATION"));
+        mockMvc.perform(
+                        post("/api/v1/admin/users")
+                                .header(
+                                        "Authorization",
+                                        bearer(loggedIn.at("/data/accessToken").asText()))
+                                .header("Idempotency-Key", "short-password-rejected")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        "{\"username\":\"newuser\",\"password\":\"1234\",\"displayName\":\"New User\",\"roles\":[\"USER\"]}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void logsInByUsernameAndMobileAndReturnsCurrentUser() throws Exception {
         JsonNode usernameLogin = login("normal", PASSWORD, 200);
         String accessToken = usernameLogin.at("/data/accessToken").asText();

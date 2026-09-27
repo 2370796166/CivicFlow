@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="CivicFlow - Start all" type="JarApplication" factoryName="JAR Application">
+    <option name="JAR_PATH" value="$PROJECT_DIR$/.local/bootstrap/civicflow-local-launcher.jar" />
+    <option name="PROGRAM_PARAMETERS" value="up" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false" />
+    <method v="2" />
+  </configuration>
+</component>

@@ -55,6 +55,27 @@ public class ResourceSlotSnapshotServiceImpl implements ResourceSlotSnapshotServ
                 hasMore);
     }
 
+    @Override
+    public SlotCandidatePageResponse reconciliationCandidates(Instant at, long afterId, int size) {
+        if (at == null || afterId < 0 || size < 1 || size > 100) {
+            throw new BusinessException(CommonErrorCode.VALIDATION);
+        }
+        var local = at.atZone(BUSINESS_ZONE);
+        List<SlotSnapshotRow> rows =
+                mapper.selectReconciliationCandidates(
+                        at, local.toLocalDate(), local.toLocalTime(), afterId, size + 1);
+        boolean hasMore = rows.size() > size;
+        List<SlotSnapshotRow> page = hasMore ? rows.subList(0, size) : rows;
+        String nextCursor =
+                page.isEmpty()
+                        ? Long.toString(afterId)
+                        : page.get(page.size() - 1).slotId().toString();
+        return new SlotCandidatePageResponse(
+                page.stream().map(ResourceSlotSnapshotServiceImpl::toResponse).toList(),
+                nextCursor,
+                hasMore);
+    }
+
     private static SlotSnapshotResponse toResponse(SlotSnapshotRow row) {
         Instant closeAt = row.serviceDate().atTime(row.endTime()).atZone(BUSINESS_ZONE).toInstant();
         return new SlotSnapshotResponse(
@@ -68,9 +89,10 @@ public class ResourceSlotSnapshotServiceImpl implements ResourceSlotSnapshotServ
                 row.endTime(),
                 row.totalQuota(),
                 row.releaseAt(),
+                row.checkInStart(),
+                row.checkInEnd(),
                 closeAt,
                 row.status().name(),
                 row.configVersion());
     }
-
 }

@@ -23,6 +23,17 @@ public class AppointmentProperties {
     @Valid private Reservation reservation = new Reservation();
     @Valid private Recovery recovery = new Recovery();
     @Valid private Preheat preheat = new Preheat();
+    @Valid private Reconciliation reconciliation = new Reconciliation();
+    @Valid private CheckIn checkIn = new CheckIn();
+
+    @Getter
+    @Setter
+    public static class CheckIn {
+        private String signingKeyBase64;
+        @NotBlank private String keyId = "checkin-v1";
+        @NotNull private Duration tokenTtl = Duration.ofMinutes(2);
+        private boolean allowTestKey;
+    }
 
     @Getter
     @Setter
@@ -89,5 +100,22 @@ public class AppointmentProperties {
         @Min(1)
         @Max(500)
         private int pageSize = 100;
+    }
+
+    @Getter
+    @Setter
+    public static class Reconciliation {
+        private boolean enabled = true;
+        @NotNull private Duration fixedDelay = Duration.ofMinutes(5);
+        @NotNull private Duration gracePeriod = Duration.ofMinutes(2);
+        @NotNull private Duration slotDelay = Duration.ofMillis(50);
+
+        @Min(1)
+        @Max(100)
+        private int pageSize = 50;
+
+        @Min(1)
+        @Max(1000)
+        private int maxSlotsPerRun = 500;
     }
 }

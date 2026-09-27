@@ -15,6 +15,12 @@ public class RedisStockRepository {
     private static final DefaultRedisScript<List> COMPENSATE = script("lua/compensate_stock.lua");
     private static final DefaultRedisScript<List> MARK_PUBLISHED = script("lua/mark_published.lua");
     private static final DefaultRedisScript<List> MARK_PERSISTED = script("lua/mark_persisted.lua");
+    private static final DefaultRedisScript<List> RECONCILIATION_SNAPSHOT =
+            script("lua/reconciliation_snapshot.lua");
+    private static final DefaultRedisScript<List> RECONCILIATION_REPAIR =
+            script("lua/reconciliation_repair.lua");
+    private static final DefaultRedisScript<Long> RELEASE_ACTIVE =
+            longScript("lua/release_active.lua");
 
     private final StringRedisTemplate redisTemplate;
     private final RedisKeyFactory keyFactory;
@@ -39,6 +45,65 @@ public class RedisStockRepository {
                 now.toEpochMilli(),
                 stockExpiresAt.toEpochMilli());
     }
+
+    public ReconciliationSnapshot reconciliationSnapshot(SlotStockSnapshot snapshot) {
+        RedisKeyFactory.ReconciliationKeys keys =
+                keyFactory.reconciliationKeys(
+                        snapshot.itemId(), snapshot.serviceDate(), snapshot.slotId());
+        List<?> values =
+                redisTemplate.execute(
+                        RECONCILIATION_SNAPSHOT, List.of(keys.stock(), keys.pending()));
+        if (values == null || values.size() != 5) {
+            throw new IllegalStateException("Invalid reconciliation snapshot result");
+        }
+        return new ReconciliationSnapshot(
+                number(values.get(0)),
+                number(values.get(1)),
+                number(values.get(2)),
+                number(values.get(3)),
+                number(values.get(4)));
+    }
+
+    public LuaResult reconciliationRepair(
+            SlotStockSnapshot snapshot, ReconciliationSnapshot before, int expected, Instant now) {
+        RedisKeyFactory.ReconciliationKeys keys =
+                keyFactory.reconciliationKeys(
+                        snapshot.itemId(), snapshot.serviceDate(), snapshot.slotId());
+        return execute(
+                RECONCILIATION_REPAIR,
+                List.of(keys.stock(), keys.pending()),
+                before.configVersion(),
+                before.remaining(),
+                before.mutationSeq(),
+                snapshot.totalQuota(),
+                expected,
+                now.toEpochMilli());
+    }
+
+    public String activeReservation(SlotStockSnapshot snapshot, long userId) {
+        return redisTemplate
+                .opsForValue()
+                .get(keyFactory.activeKey(snapshot.itemId(), snapshot.serviceDate(), userId));
+    }
+
+    public void releaseActiveIfOwned(
+            long itemId, java.time.LocalDate serviceDate, long userId, String reservationId) {
+        Long result =
+                redisTemplate.execute(
+                        RELEASE_ACTIVE,
+                        List.of(keyFactory.activeKey(itemId, serviceDate, userId)),
+                        reservationId);
+        if (result == null) {
+            throw new IllegalStateException("Missing active guard release result");
+        }
+    }
+
+    private static long number(Object value) {
+        return ((Number) value).longValue();
+    }
+
+    public record ReconciliationSnapshot(
+            long total, long remaining, long configVersion, long mutationSeq, long pendingCount) {}
 
     public LuaResult adjust(SlotStockSnapshot snapshot, Instant now, Instant stockExpiresAt) {
         RedisKeyFactory.StockKeys keys =
@@ -176,6 +241,13 @@ public class RedisStockRepository {
         DefaultRedisScript<List> script = new DefaultRedisScript<>();
         script.setLocation(new ClassPathResource(path));
         script.setResultType(List.class);
+        return script;
+    }
+
+    private static DefaultRedisScript<Long> longScript(String path) {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource(path));
+        script.setResultType(Long.class);
         return script;
     }
 }

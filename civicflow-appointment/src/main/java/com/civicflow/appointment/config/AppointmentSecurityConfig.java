@@ -102,6 +102,14 @@ public class AppointmentSecurityConfig {
                                         authorities.add(
                                                 new SimpleGrantedAuthority("ROLE_" + role)));
                     }
+                    Object scopeClaim = jwt.getClaim("scope");
+                    if (scopeClaim instanceof String scopes) {
+                        for (String scope : scopes.split("\\s+")) {
+                            if (!scope.isBlank()) {
+                                authorities.add(new SimpleGrantedAuthority("SCOPE_" + scope));
+                            }
+                        }
+                    }
                     return authorities;
                 });
         return converter;

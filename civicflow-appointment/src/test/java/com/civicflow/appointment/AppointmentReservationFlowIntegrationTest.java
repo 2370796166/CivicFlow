@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -361,18 +362,25 @@ class AppointmentReservationFlowIntegrationTest {
     }
 
     private static ResourceSlotSnapshot snapshot(long slotId) {
+        ZoneId zone = ZoneId.of("Asia/Shanghai");
+        LocalDate date = LocalDate.now(zone).plusDays(1);
+        Instant now = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+        Instant slotStart = date.atTime(9, 0).atZone(zone).toInstant();
+        Instant slotEnd = date.atTime(10, 0).atZone(zone).toInstant();
         return new ResourceSlotSnapshot(
                 Long.toString(slotId),
                 "8201",
                 "8301",
                 "东城政务中心",
                 "户籍服务",
-                LocalDate.of(2026, 9, 25),
+                date,
                 LocalTime.of(9, 0),
                 LocalTime.of(10, 0),
                 5,
-                Instant.parse("2026-09-20T00:00:00Z"),
-                Instant.parse("2026-09-25T02:00:00Z"),
+                now.minusSeconds(3600),
+                slotStart.minusSeconds(1800),
+                slotEnd,
+                slotEnd,
                 "OPEN",
                 3);
     }

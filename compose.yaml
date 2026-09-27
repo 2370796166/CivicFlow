@@ -1,0 +1,5 @@
+# All application and infrastructure processes run in containers.
+# Match the existing local Compose project; override with -p for another installation.
+name: ${COMPOSE_PROJECT_NAME:-compose}
+include:
+  - path: ./deploy/compose/compose.yaml

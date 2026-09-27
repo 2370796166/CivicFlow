@@ -1,7 +1,36 @@
-name: civicflow-local
+name: ${COMPOSE_PROJECT_NAME:-compose}
+
+x-logging: &local-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-app: &app
+  restart: unless-stopped
+  stop_grace_period: 30s
+  logging: *local-logging
+  init: true
+  networks: [civicflow-local]
+  healthcheck:
+    test: ["CMD-SHELL", "java -cp /app/health Healthcheck $${HEALTH_PORT}"]
+    interval: 15s
+    timeout: 6s
+    retries: 20
+    start_period: 60s
+
+x-bootstrap: &bootstrap
+  image: civicflow/bootstrap:local
+  build:
+    context: ../..
+    dockerfile: deploy/docker/bootstrap.Dockerfile
+  logging: *local-logging
+  env_file: .env
+  networks: [civicflow-local]
 
 services:
   mysql:
+    logging: *local-logging
     image: mysql:8.4.11
     container_name: civicflow-mysql
     restart: unless-stopped
@@ -34,7 +63,7 @@ services:
       - mysql-data:/var/lib/mysql
       - ./mysql/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping --protocol=socket -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_ROOT_PASSWORD}\" mysql --protocol=socket -uroot -N -e 'SELECT 1' >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -43,6 +72,7 @@ services:
       - civicflow-local
 
   redis:
+    logging: *local-logging
     image: redis:7.4.11-alpine
     container_name: civicflow-redis
     restart: unless-stopped
@@ -67,6 +97,7 @@ services:
       - civicflow-local
 
   rabbitmq:
+    logging: *local-logging
     image: rabbitmq:4.1.8-management-alpine
     container_name: civicflow-rabbitmq
     hostname: civicflow-rabbitmq
@@ -91,6 +122,7 @@ services:
       - civicflow-local
 
   nacos:
+    logging: *local-logging
     image: nacos/nacos-server:v2.5.4
     container_name: civicflow-nacos
     restart: unless-stopped
@@ -121,8 +153,9 @@ services:
       - civicflow-local
 
   nacos-init:
-    image: curlimages/curl:8.22.0
-    profiles: ["init"]
+    # Reuse the exact Nacos image (contains curl); no additional image pull for init.
+    image: nacos/nacos-server:v2.5.4
+    logging: *local-logging
     depends_on:
       nacos:
         condition: service_healthy
@@ -136,12 +169,135 @@ services:
     networks:
       - civicflow-local
 
+  bootstrap:
+    <<: *bootstrap
+    command: [init]
+    depends_on:
+      mysql: {condition: service_healthy}
+      nacos-init: {condition: service_completed_successfully}
+    volumes:
+      - ../../.local/dev:/state
+      - auth-config:/output/auth
+      - resource-config:/output/resource
+      - appointment-config:/output/appointment
+      - queue-config:/output/queue
+      - gateway-config:/output/gateway
+
+  service-identity:
+    <<: *bootstrap
+    restart: unless-stopped
+    command: [rotate]
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+    volumes:
+      - ../../.local/dev:/state:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import time; from pathlib import Path; assert time.time()-float(Path('/tmp/rotation-ready').read_text()) < 120"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+
+  auth:
+    <<: *app
+    image: civicflow/auth:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend.Dockerfile
+      args: {SERVICE: auth}
+    environment: {HEALTH_PORT: "8081"}
+    volumes: ["auth-config:/config:ro"]
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+
+  admin-init:
+    <<: *bootstrap
+    command: [seed]
+    depends_on:
+      auth: {condition: service_healthy}
+    volumes:
+      - ../../.local/dev:/state
+
+  resource:
+    <<: *app
+    image: civicflow/resource:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend.Dockerfile
+      args: {SERVICE: resource}
+    environment: {HEALTH_PORT: "8082"}
+    volumes: ["resource-config:/config:ro"]
+    depends_on:
+      auth: {condition: service_healthy}
+
+  appointment:
+    <<: *app
+    image: civicflow/appointment:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend.Dockerfile
+      args: {SERVICE: appointment}
+    environment: {HEALTH_PORT: "8083"}
+    volumes: ["appointment-config:/config:ro"]
+    depends_on:
+      resource: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+      service-identity: {condition: service_healthy}
+
+  queue:
+    <<: *app
+    image: civicflow/queue:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend.Dockerfile
+      args: {SERVICE: queue}
+    environment: {HEALTH_PORT: "8084"}
+    volumes: ["queue-config:/config:ro"]
+    depends_on:
+      appointment: {condition: service_healthy}
+
+  gateway:
+    <<: *app
+    image: civicflow/gateway:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend.Dockerfile
+      args: {SERVICE: gateway}
+    environment: {HEALTH_PORT: "8080"}
+    volumes: ["gateway-config:/config:ro"]
+    ports: ["127.0.0.1:${GATEWAY_PORT:-8080}:8080"]
+    depends_on:
+      queue: {condition: service_healthy}
+      admin-init: {condition: service_completed_successfully}
+
+  web:
+    image: civicflow/web:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/web.Dockerfile
+    restart: unless-stopped
+    logging: *local-logging
+    ports: ["127.0.0.1:${WEB_PORT:-5173}:80"]
+    depends_on:
+      gateway: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks: [civicflow-local]
+
 networks:
   civicflow-local:
     name: civicflow-local
     driver: bridge
 
 volumes:
+  auth-config:
+  resource-config:
+  appointment-config:
+  queue-config:
+  gateway-config:
   mysql-data:
     name: civicflow-mysql-data
   redis-data:

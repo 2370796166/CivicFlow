@@ -51,4 +51,31 @@
         SELECT id FROM appointment_order WHERE status='PENDING_CONFIRM'
         AND confirm_deadline &lt;= CURRENT_TIMESTAMP(3) ORDER BY confirm_deadline,id LIMIT #{limit}
     </select>
+    <update id="setQr">
+        UPDATE appointment_order SET qr_nonce_hash=#{hash},qr_expires_at=#{expiresAt},
+        qr_key_id=#{keyId},version=version+1,updated_at=CURRENT_TIMESTAMP(3)
+        WHERE id=#{id} AND user_id=#{userId} AND status='CONFIRMED'
+    </update>
+    <update id="claimCheckIn">
+        UPDATE appointment_order SET status='CHECKED_IN',checked_in_at=CURRENT_TIMESTAMP(3),
+        checkin_claim_id=#{claimId},version=version+1,updated_at=CURRENT_TIMESTAMP(3)
+        WHERE id=#{id} AND user_id=#{userId} AND outlet_id=#{outletId}
+        AND status='CONFIRMED' AND qr_nonce_hash=#{hash}
+        AND qr_expires_at &gt; CURRENT_TIMESTAMP(3)
+    </update>
+    <update id="linkTicket">
+        UPDATE appointment_order SET queue_ticket_id=#{ticketId},version=version+1,
+        updated_at=CURRENT_TIMESTAMP(3)
+        WHERE id=#{id} AND checkin_claim_id=#{claimId} AND status IN ('CHECKED_IN','SERVING','COMPLETED','NO_SHOW')
+        AND queue_ticket_id IS NULL
+    </update>
+    <update id="applyQueueState">
+        UPDATE appointment_order SET status=#{to},version=version+1,updated_at=CURRENT_TIMESTAMP(3),
+        <choose>
+            <when test="to == 'SERVING'">serving_at=CURRENT_TIMESTAMP(3),</when>
+            <when test="to == 'COMPLETED'">completed_at=CURRENT_TIMESTAMP(3),</when>
+            <when test="to == 'NO_SHOW'">no_show_at=CURRENT_TIMESTAMP(3),</when>
+        </choose>
+        id=id WHERE id=#{id} AND queue_ticket_id=#{ticketId} AND status=#{from}
+    </update>
 </mapper>

@@ -62,4 +62,5 @@ redis.call('HSET', KEYS[3],
 redis.call('PEXPIREAT', KEYS[3], ARGV[9])
 redis.call('ZADD', KEYS[4], ARGV[7], ARGV[1])
 redis.call('PEXPIREAT', KEYS[4], ARGV[10])
+redis.call('HINCRBY', KEYS[1], 'mutationSeq', 1)
 return {0, remaining, version}

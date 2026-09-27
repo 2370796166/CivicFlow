@@ -62,6 +62,13 @@ public interface ResourceSlotMapper extends BaseMapper<ResourceSlotEntity> {
             @Param("afterId") long afterId,
             @Param("size") int size);
 
+    List<SlotSnapshotRow> selectReconciliationCandidates(
+            @Param("at") Instant at,
+            @Param("today") LocalDate today,
+            @Param("localTime") LocalTime localTime,
+            @Param("afterId") long afterId,
+            @Param("size") int size);
+
     int updateDraftDetails(
             @Param("id") long id,
             @Param("outletId") long outletId,

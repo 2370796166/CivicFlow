@@ -23,6 +23,17 @@ public final class RedisKeyFactory {
         return new StockKeys(prefix + "stock:" + tag + ":slot:" + slotId, tag);
     }
 
+    public ReconciliationKeys reconciliationKeys(long itemId, LocalDate serviceDate, long slotId) {
+        String tag = tag(itemId, serviceDate);
+        return new ReconciliationKeys(
+                prefix + "stock:" + tag + ":slot:" + slotId,
+                prefix + "reservation-pending:" + tag + ":slot:" + slotId);
+    }
+
+    public String activeKey(long itemId, LocalDate serviceDate, long userId) {
+        return prefix + "active:" + tag(itemId, serviceDate) + ":user:" + userId;
+    }
+
     public ReservationKeys reservationKeys(
             long itemId, LocalDate serviceDate, long slotId, long userId, String reservationId) {
         String tag = tag(itemId, serviceDate);
@@ -42,6 +53,8 @@ public final class RedisKeyFactory {
     }
 
     public record StockKeys(String stock, String hashTag) {}
+
+    public record ReconciliationKeys(String stock, String pending) {}
 
     public record ReservationKeys(
             String stock, String active, String reservation, String pending, String compensated) {}

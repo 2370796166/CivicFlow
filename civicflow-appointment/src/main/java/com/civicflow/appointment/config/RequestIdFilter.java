@@ -19,7 +19,9 @@ public class RequestIdFilter extends OncePerRequestFilter {
             HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         String requestId = request.getHeader(HEADER);
-        if (requestId == null || !requestId.matches("[A-Za-z0-9._:-]{1,128}")) {
+        if (!request.getRequestURI().startsWith("/internal/")
+                || requestId == null
+                || !requestId.matches("[A-Za-z0-9._:-]{1,128}")) {
             requestId = UUID.randomUUID().toString();
         }
         request.setAttribute(ATTRIBUTE, requestId);

@@ -16,5 +16,7 @@ public record SlotSnapshotRow(
         LocalTime endTime,
         int totalQuota,
         Instant releaseAt,
+        Instant checkInStart,
+        Instant checkInEnd,
         SlotStatus status,
         long configVersion) {}

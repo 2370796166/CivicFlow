@@ -48,4 +48,15 @@ public class InternalResourceSlotController {
                 service.candidates(releaseFrom, releaseTo, afterId, size),
                 RequestIdFilter.current(request));
     }
+
+    @GetMapping("/reconciliation-candidates")
+    ApiResponse<SlotCandidatePageResponse> reconciliationCandidates(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant at,
+            @RequestParam(defaultValue = "0") @Min(0) long afterId,
+            @RequestParam(defaultValue = "100") @Min(1) @Max(100) int size,
+            HttpServletRequest request) {
+        return ApiResponse.success(
+                service.reconciliationCandidates(at, afterId, size),
+                RequestIdFilter.current(request));
+    }
 }

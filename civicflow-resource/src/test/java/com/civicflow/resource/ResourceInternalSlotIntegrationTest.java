@@ -27,6 +27,9 @@ class ResourceInternalSlotIntegrationTest {
 
     @BeforeEach
     void seedSlot() {
+        jdbcTemplate.update("DELETE FROM staff_window_scope");
+        jdbcTemplate.update("DELETE FROM window_item_rel");
+        jdbcTemplate.update("DELETE FROM service_window");
         jdbcTemplate.update("DELETE FROM resource_slot");
         jdbcTemplate.update("DELETE FROM service_item");
         jdbcTemplate.update("DELETE FROM service_outlet");
@@ -106,6 +109,72 @@ class ResourceInternalSlotIntegrationTest {
                                                         new SimpleGrantedAuthority(
                                                                 "SCOPE_resource.slots.read"))))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void staffAuthorizationRequiresQueueServiceIdentity() throws Exception {
+        var call =
+                get("/internal/v1/resource/staff/authorization")
+                        .param("staffUserId", "7001")
+                        .param("outletId", "101");
+        mockMvc.perform(call.with(appointmentService())).andExpect(status().isForbidden());
+        mockMvc.perform(
+                        get("/internal/v1/resource/staff/authorization")
+                                .param("staffUserId", "7001")
+                                .param("outletId", "101")
+                                .with(
+                                        jwt().jwt(
+                                                        jwt ->
+                                                                jwt.claim(
+                                                                        "serviceName",
+                                                                        "civicflow-queue"))
+                                                .authorities(
+                                                        new SimpleGrantedAuthority(
+                                                                "SCOPE_resource.windows.read"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value(false));
+    }
+
+    @Test
+    void queueServiceReadsOnlyAuthorizedActiveWindowScopes() throws Exception {
+        jdbcTemplate.update(
+                "INSERT INTO service_window(id,outlet_id,code,name,status,version,deleted) VALUES(301,101,'W301','一号窗口','ENABLED',0,0)");
+        jdbcTemplate.update(
+                "INSERT INTO window_item_rel(id,window_id,item_id,deleted) VALUES(401,301,201,0)");
+        jdbcTemplate.update(
+                "INSERT INTO staff_window_scope(id,staff_user_id,outlet_id,window_id,deleted) VALUES(501,7001,101,301,0)");
+        var path = "/internal/v1/resource/staff/{staffUserId}/scopes";
+        mockMvc.perform(get(path, 7001).with(appointmentService()))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(
+                        get(path, 7001)
+                                .with(
+                                        jwt().jwt(
+                                                        token ->
+                                                                token.claim(
+                                                                        "serviceName",
+                                                                        "civicflow-queue"))
+                                                .authorities(
+                                                        new SimpleGrantedAuthority(
+                                                                "SCOPE_resource.windows.read"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].outletId").value("101"))
+                .andExpect(jsonPath("$.data[0].windowId").value("301"))
+                .andExpect(jsonPath("$.data[0].items[0].id").value("201"));
+        jdbcTemplate.update("UPDATE service_window SET status='DISABLED' WHERE id=301");
+        mockMvc.perform(
+                        get(path, 7001)
+                                .with(
+                                        jwt().jwt(
+                                                        token ->
+                                                                token.claim(
+                                                                        "serviceName",
+                                                                        "civicflow-queue"))
+                                                .authorities(
+                                                        new SimpleGrantedAuthority(
+                                                                "SCOPE_resource.windows.read"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor

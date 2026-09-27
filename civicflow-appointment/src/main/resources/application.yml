@@ -32,6 +32,10 @@ management:
 civicflow:
   appointment:
     environment: ${CIVICFLOW_ENV:dev}
+    check-in:
+      signing-key-base64: ${CIVICFLOW_CHECKIN_SIGNING_KEY:}
+      key-id: ${CIVICFLOW_CHECKIN_KEY_ID:checkin-v1}
+      token-ttl: ${CIVICFLOW_CHECKIN_TOKEN_TTL:2m}
     jwt:
       issuer: ${CIVICFLOW_JWT_ISSUER:https://auth.civicflow.local}
       audience: ${CIVICFLOW_JWT_AUDIENCE:civicflow-api}
@@ -58,3 +62,10 @@ civicflow:
       fixed-delay: ${CIVICFLOW_STOCK_PREHEAT_DELAY:60s}
       future-window: ${CIVICFLOW_STOCK_PREHEAT_WINDOW:24h}
       page-size: ${CIVICFLOW_STOCK_PREHEAT_PAGE_SIZE:100}
+    reconciliation:
+      enabled: ${CIVICFLOW_STOCK_RECONCILIATION_ENABLED:true}
+      fixed-delay: ${CIVICFLOW_STOCK_RECONCILIATION_DELAY:5m}
+      grace-period: ${CIVICFLOW_STOCK_RECONCILIATION_GRACE:2m}
+      slot-delay: ${CIVICFLOW_STOCK_RECONCILIATION_SLOT_DELAY:50ms}
+      page-size: ${CIVICFLOW_STOCK_RECONCILIATION_PAGE_SIZE:50}
+      max-slots-per-run: ${CIVICFLOW_STOCK_RECONCILIATION_MAX_SLOTS:500}

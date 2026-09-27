@@ -16,15 +16,14 @@ esac
 # is the idempotency check and fails if the persisted password differs from .env.
 admin_status="$(
   curl -sS -o "$admin_response" -w '%{http_code}' \
-    -X POST "$base_url/v3/auth/user/admin" \
+    -X POST "$base_url/v1/auth/users/admin" \
     --data-urlencode "password=$NACOS_PASSWORD" || true
 )"
 
 case "$admin_status" in
-  200|400|403) ;;
+  200|400|403|409) ;;
   *)
     echo "Unexpected response while initializing the Nacos administrator (HTTP $admin_status)" >&2
-    cat "$admin_response" >&2 || true
     exit 1
     ;;
 esac

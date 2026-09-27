@@ -34,6 +34,7 @@ if remaining >= total then
     return {21, remaining, version}
 end
 remaining = redis.call('HINCRBY', KEYS[1], 'remaining', 1)
+redis.call('HINCRBY', KEYS[1], 'mutationSeq', 1)
 redis.call('DEL', KEYS[2])
 redis.call('DEL', KEYS[3])
 redis.call('ZREM', KEYS[4], ARGV[1])

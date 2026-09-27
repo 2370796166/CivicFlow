@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Local Gateway" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <module name="civicflow-gateway" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="com.civicflow.gateway.GatewayApplication" />
+    <option name="VM_PARAMETERS" value="-Xms64m -Xmx384m -Dspring.config.additional-location=&quot;file:$PROJECT_DIR$/.local/dev/gateway.properties&quot;" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

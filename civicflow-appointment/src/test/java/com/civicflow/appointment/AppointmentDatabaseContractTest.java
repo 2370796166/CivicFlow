@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -31,6 +32,8 @@ class AppointmentDatabaseContractTest {
     private static final String RESERVATION_DDL = migration("V3__create_reservation_request.sql");
     private static final String COMMAND_DDL =
             migration("V4__create_appointment_command_idempotency.sql");
+    private static final String RECONCILIATION_DDL =
+            migration("V5__reconciliation_idempotency.sql");
 
     @Test
     void entitiesMirrorAllAppointmentTables() {
@@ -43,7 +46,9 @@ class AppointmentDatabaseContractTest {
                 columnsFor(COMMAND_DDL, "appointment_command_idempotency"),
                 fieldsOf(AppointmentCommandIdempotencyEntity.class));
         assertEntityMatchesTable(StockReleaseRecordEntity.class, "stock_release_record");
-        assertEntityMatchesTable(StockReconciliationRunEntity.class, "stock_reconciliation_run");
+        Set<String> runColumns = new HashSet<>(columnsFor("stock_reconciliation_run"));
+        runColumns.addAll(Set.of("idempotency_key_hash", "request_hash", "report_json"));
+        assertEquals(runColumns, fieldsOf(StockReconciliationRunEntity.class));
         assertEntityMatchesTable(
                 StockReconciliationDetailEntity.class, "stock_reconciliation_detail");
     }
@@ -57,6 +62,7 @@ class AppointmentDatabaseContractTest {
         assertTrue(DDL.contains("UNIQUE KEY uk_stock_release_reservation (reservation_id)"));
         assertTrue(DDL.contains("KEY idx_appointment_timeout"));
         assertTrue(COMMAND_DDL.contains("UNIQUE KEY uk_appt_command_key"));
+        assertTrue(RECONCILIATION_DDL.contains("UNIQUE KEY uk_reconciliation_actor_key"));
     }
 
     @Test

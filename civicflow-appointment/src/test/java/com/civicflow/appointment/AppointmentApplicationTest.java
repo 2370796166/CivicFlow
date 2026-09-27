@@ -1,5 +1,6 @@
 package com.civicflow.appointment;
 
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -33,7 +34,10 @@ class AppointmentApplicationTest {
 
     @Test
     void singleSlotPreheatRequiresAdmin() throws Exception {
-        when(stockPreheatService.preheatOne(42, 7, "admin-preheat"))
+        when(stockPreheatService.preheatOne(
+                        org.mockito.ArgumentMatchers.eq(42L),
+                        org.mockito.ArgumentMatchers.eq(7L),
+                        anyString()))
                 .thenReturn(new StockPreheatService.PreheatResult("42", "UNCHANGED", 3, 1));
 
         mockMvc.perform(post("/api/v1/admin/stock/slots/42/preheat"))

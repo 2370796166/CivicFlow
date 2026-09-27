@@ -29,9 +29,13 @@ spring:
 
 civicflow:
   appointment:
+    check-in:
+      allow-test-key: true
     jwt:
       allow-test-decoder: true
     preheat:
+      enabled: false
+    reconciliation:
       enabled: false
     recovery:
       enabled: false

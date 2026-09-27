@@ -1,4 +1,7 @@
 DROP TABLE IF EXISTS stock_release_record;
+DROP TABLE IF EXISTS stock_reconciliation_detail;
+DROP TABLE IF EXISTS stock_reconciliation_run;
+DROP TABLE IF EXISTS stock_admin_audit;
 DROP TABLE IF EXISTS outbox_event;
 DROP TABLE IF EXISTS appointment_command_idempotency;
 DROP TABLE IF EXISTS message_consume_record;
@@ -167,4 +170,53 @@ CREATE TABLE stock_release_record (
     created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uk_stock_release_reservation UNIQUE (reservation_id)
+);
+
+CREATE TABLE stock_reconciliation_run (
+    id BIGINT NOT NULL PRIMARY KEY,
+    trigger_type VARCHAR(32) NOT NULL,
+    slot_scope_json JSON,
+    status VARCHAR(32) NOT NULL,
+    started_at TIMESTAMP(3) NOT NULL,
+    completed_at TIMESTAMP(3),
+    actor_id BIGINT,
+    idempotency_key_hash BINARY(32),
+    request_hash BINARY(32),
+    report_json JSON,
+    created_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT uk_reconciliation_actor_key UNIQUE(actor_id, idempotency_key_hash)
+);
+
+CREATE TABLE stock_reconciliation_detail (
+    id BIGINT NOT NULL PRIMARY KEY,
+    run_id BIGINT NOT NULL,
+    slot_id BIGINT NOT NULL,
+    config_version BIGINT NOT NULL,
+    configured_total INT NOT NULL,
+    persisted_consumed INT NOT NULL,
+    pending_reserved INT NOT NULL,
+    expected_remaining INT NOT NULL,
+    actual_remaining INT,
+    diff INT,
+    classification VARCHAR(64) NOT NULL,
+    repair_status VARCHAR(32) NOT NULL,
+    before_json JSON,
+    after_json JSON,
+    created_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT uk_reconciliation_run_slot UNIQUE(run_id, slot_id)
+);
+
+CREATE TABLE stock_admin_audit (
+    id BIGINT NOT NULL PRIMARY KEY,
+    actor_user_id BIGINT NOT NULL,
+    slot_id BIGINT NOT NULL,
+    action VARCHAR(64) NOT NULL,
+    outcome VARCHAR(64) NOT NULL,
+    request_id VARCHAR(64) NOT NULL,
+    detail_json JSON,
+    occurred_at TIMESTAMP(3) NOT NULL,
+    created_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
