@@ -19,6 +19,8 @@ mybatis-plus:
 
 server:
   port: ${CIVICFLOW_APPOINTMENT_PORT:8083}
+  tomcat:
+    accept-count: 2048
 
 management:
   endpoints:

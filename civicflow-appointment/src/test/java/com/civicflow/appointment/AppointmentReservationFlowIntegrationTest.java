@@ -2,6 +2,7 @@ package com.civicflow.appointment;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -103,6 +104,66 @@ class AppointmentReservationFlowIntegrationTest {
                                 ReservationEventPublisher.Outcome.ACKNOWLEDGED, 1, null));
         when(redisStateService.markPublished(any())).thenReturn(true);
         when(redisStateService.markPersisted(any(), anyLong())).thenReturn(true);
+    }
+
+    @Test
+    void concurrentSameKeyPublishesOneCanonicalEvent() throws Exception {
+        var entered = new java.util.concurrent.CountDownLatch(1);
+        var continueFirst = new java.util.concurrent.CountDownLatch(1);
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        when(stockService.reserve(any(), anyLong(), anyString()))
+                .thenAnswer(
+                        call -> {
+                            if (calls.incrementAndGet() == 1) {
+                                entered.countDown();
+                                assertTrue(
+                                        continueFirst.await(
+                                                10, java.util.concurrent.TimeUnit.SECONDS));
+                            }
+                            return new ReservationStockService.ReservationResult(
+                                    call.getArgument(2), false, 4, 3);
+                        });
+        var pool = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            var first =
+                    pool.submit(
+                            () -> workflowService.create(USER_ID, SLOT_ID, "racing-key", "trace"));
+            assertTrue(entered.await(10, java.util.concurrent.TimeUnit.SECONDS));
+            // Ensure the independent contender takes a distinct millisecond timestamp.
+            Thread.sleep(20);
+            var second = workflowService.create(USER_ID, SLOT_ID, "racing-key", "trace");
+            continueFirst.countDown();
+            assertEquals(
+                    second.response().reservationId(),
+                    first.get(10, java.util.concurrent.TimeUnit.SECONDS)
+                            .response()
+                            .reservationId());
+            var captor = ArgumentCaptor.forClass(ReservationRequestedEvent.class);
+            verify(publisher, org.mockito.Mockito.atLeastOnce()).publish(captor.capture());
+            assertEquals(1, captor.getAllValues().stream().distinct().count());
+        } finally {
+            continueFirst.countDown();
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    void latePublisherAckMustNotOverwriteCommittedConsumerProjection() {
+        when(publisher.publish(any()))
+                .thenAnswer(
+                        call -> {
+                            ReservationRequestedEvent event = call.getArgument(0);
+                            creationService.create(event, ReservationEventHash.compute(event));
+                            return new ReservationEventPublisher.PublishResult(
+                                    ReservationEventPublisher.Outcome.ACKNOWLEDGED, 1, null);
+                        });
+        var outcome = workflowService.create(USER_ID, SLOT_ID, "consumer-before-confirm", "trace");
+        assertEquals(
+                "PERSISTED",
+                jdbcTemplate.queryForObject(
+                        "SELECT status FROM appointment_reservation_request WHERE reservation_id=?",
+                        String.class,
+                        outcome.response().reservationId()));
     }
 
     @Test

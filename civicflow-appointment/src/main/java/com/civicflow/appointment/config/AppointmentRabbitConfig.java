@@ -5,6 +5,9 @@ import com.civicflow.appointment.event.PermanentReservationMessageException;
 import java.util.HashMap;
 import java.util.Map;
 import org.aopalliance.aop.Advice;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.Queue;
@@ -12,7 +15,6 @@ import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.config.RetryInterceptorBuilder;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
-import org.springframework.amqp.rabbit.retry.RejectAndDontRequeueRecoverer;
 import org.springframework.boot.autoconfigure.amqp.SimpleRabbitListenerContainerFactoryConfigurer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,6 +22,8 @@ import org.springframework.retry.policy.SimpleRetryPolicy;
 
 @Configuration
 public class AppointmentRabbitConfig {
+    private static final Logger LOGGER = LoggerFactory.getLogger(AppointmentRabbitConfig.class);
+
     @Bean
     TopicExchange appointmentExchange() {
         return new TopicExchange(AppointmentMessaging.APPOINTMENT_EXCHANGE, true, false);
@@ -124,7 +128,17 @@ public class AppointmentRabbitConfig {
         Advice retry =
                 RetryInterceptorBuilder.stateless()
                         .retryPolicy(retryPolicy)
-                        .recoverer(new RejectAndDontRequeueRecoverer())
+                        .recoverer(
+                                (message, cause) -> {
+                                    // The default recoverer logs body/headers and does not reject
+                                    // unacked MANUAL deliveries. The cause may contain sensitive
+                                    // data.
+                                    LOGGER.warn(
+                                            "Message rejected after bounded retry type={}",
+                                            cause.getClass().getSimpleName());
+                                    throw new AmqpRejectAndDontRequeueException(
+                                            "Message rejected after bounded retry", true, null);
+                                })
                         .build();
         factory.setAdviceChain(retry);
         factory.setAcknowledgeMode(org.springframework.amqp.core.AcknowledgeMode.MANUAL);

@@ -106,6 +106,12 @@ public class ReservationWorkflowServiceImpl implements ReservationWorkflowServic
         ReservationRequestedEvent event;
         if (request.getStatus() == ReservationRequestStatus.CREATED) {
             event = reserve(request);
+            request = requestMapper.selectById(request.getId());
+            if (request.getStatus() == ReservationRequestStatus.PERSISTED
+                    || request.getStatus() == ReservationRequestStatus.PUBLISHED) {
+                return creating(request, false);
+            }
+            previouslyUnknown = request.getStatus() == ReservationRequestStatus.PUBLISH_UNKNOWN;
         } else {
             event = readEvent(request);
         }
@@ -115,15 +121,17 @@ public class ReservationWorkflowServiceImpl implements ReservationWorkflowServic
         if (publishResult.outcome() == ReservationEventPublisher.Outcome.ACKNOWLEDGED) {
             request.setStatus(ReservationRequestStatus.PUBLISHED);
             request.setLastErrorCode(null);
-            requestMapper.updateById(request);
+            if (requestMapper.recordPublication(request) != 1) {
+                request = requestMapper.selectById(request.getId());
+            }
             try {
                 if (!redisStateService.markPublished(request)) {
                     request.setLastErrorCode("REDIS_MARK_PUBLISHED_RECONCILE");
-                    requestMapper.updateById(request);
+                    recordPublishMarkerFailure(request);
                 }
             } catch (RuntimeException exception) {
                 request.setLastErrorCode("REDIS_MARK_PUBLISHED_FAILED");
-                requestMapper.updateById(request);
+                recordPublishMarkerFailure(request);
             }
             return creating(request, false);
         }
@@ -132,7 +140,13 @@ public class ReservationWorkflowServiceImpl implements ReservationWorkflowServic
             request.setStatus(ReservationRequestStatus.PUBLISH_UNKNOWN);
             request.setNextRecoveryAt(
                     clock.instant().plus(properties.getRecovery().getRetryDelay()));
-            requestMapper.updateById(request);
+            if (requestMapper.recordPublication(request) != 1) {
+                request = requestMapper.selectById(request.getId());
+                if (request.getStatus() == ReservationRequestStatus.PERSISTED
+                        || request.getStatus() == ReservationRequestStatus.PUBLISHED) {
+                    return creating(request, false);
+                }
+            }
             return creating(request, true);
         }
         return compensatePublishFailure(request);
@@ -149,7 +163,13 @@ public class ReservationWorkflowServiceImpl implements ReservationWorkflowServic
             request.setStatus(ReservationRequestStatus.FAILED);
             request.setFailureCode(exception.errorCode().code());
             request.setLastErrorCode(exception.errorCode().code());
-            requestMapper.updateById(request);
+            requestMapper.update(
+                    request,
+                    Wrappers.<AppointmentReservationRequestEntity>lambdaUpdate()
+                            .eq(AppointmentReservationRequestEntity::getId, request.getId())
+                            .eq(
+                                    AppointmentReservationRequestEntity::getStatus,
+                                    ReservationRequestStatus.CREATED));
             throw exception;
         }
         request.setReservedAt(reservedAt);
@@ -157,8 +177,24 @@ public class ReservationWorkflowServiceImpl implements ReservationWorkflowServic
         ReservationRequestedEvent event = event(request);
         request.setEventJson(writeEvent(event));
         request.setStatus(ReservationRequestStatus.RESERVED);
-        requestMapper.updateById(request);
-        return event;
+        if (requestMapper.saveReservedEvent(request) == 1) {
+            return event;
+        }
+        return readEvent(requestMapper.selectById(request.getId()));
+    }
+
+    private void recordPublishMarkerFailure(AppointmentReservationRequestEntity request) {
+        // Diagnostics do not write an old entity snapshot back over consumer state or event data.
+        requestMapper.update(
+                null,
+                Wrappers.<AppointmentReservationRequestEntity>lambdaUpdate()
+                        .eq(AppointmentReservationRequestEntity::getId, request.getId())
+                        .eq(
+                                AppointmentReservationRequestEntity::getStatus,
+                                ReservationRequestStatus.PUBLISHED)
+                        .set(
+                                AppointmentReservationRequestEntity::getLastErrorCode,
+                                request.getLastErrorCode()));
     }
 
     private CreateOutcome compensatePublishFailure(AppointmentReservationRequestEntity request) {
