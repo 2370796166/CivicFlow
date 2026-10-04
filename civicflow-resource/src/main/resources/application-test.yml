@@ -1,0 +1,29 @@
+spring:
+  cloud:
+    nacos:
+      discovery:
+        enabled: false
+      config:
+        enabled: false
+  datasource:
+    url: jdbc:h2:mem:civicflow_resource;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+  flyway:
+    enabled: false
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-h2.sql
+
+civicflow:
+  resource:
+    jwt:
+      allow-test-decoder: true
+    contact-protection:
+      allow-ephemeral-test-key: true
+
+management:
+  health:
+    nacos:
+      enabled: false

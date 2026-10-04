@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.civicflow.appointment.mapper.StockReconciliationMapper">
+    <select id="selectFacts" resultType="com.civicflow.appointment.mapper.StockReconciliationMapper$Facts">
+        SELECT
+          (SELECT COUNT(*) FROM appointment_reservation_request r
+             WHERE r.slot_id = #{slotId} AND r.reserved_at IS NOT NULL) AS charged,
+          (SELECT COUNT(*) FROM stock_release_record x
+             WHERE x.slot_id = #{slotId} AND x.status = 'SUCCEEDED') AS successful_release,
+          (SELECT COUNT(*) FROM appointment_order o
+             WHERE o.slot_id = #{slotId} AND o.status NOT IN ('CANCELLED','EXPIRED')) AS persisted_consumed,
+          (SELECT COUNT(*) FROM appointment_reservation_request r
+             WHERE r.slot_id = #{slotId} AND r.reserved_at IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM appointment_order o WHERE o.reservation_id = r.reservation_id)
+               AND NOT EXISTS (SELECT 1 FROM stock_release_record x
+                   WHERE x.reservation_id = r.reservation_id AND x.status = 'SUCCEEDED')) AS pending_reserved,
+          (SELECT COUNT(*) FROM appointment_order o
+             WHERE o.slot_id = #{slotId} AND o.status IN ('CANCELLED','EXPIRED')
+               AND EXISTS (SELECT 1 FROM stock_release_record x
+                   WHERE x.reservation_id = o.reservation_id AND x.status != 'SUCCEEDED')) AS pending_release,
+          (SELECT COUNT(*) FROM stock_release_record x
+             WHERE x.slot_id = #{slotId} AND x.status != 'SUCCEEDED') AS pending_compensations,
+          (SELECT COUNT(*) FROM appointment_order o
+             WHERE o.slot_id = #{slotId} AND NOT EXISTS
+               (SELECT 1 FROM appointment_reservation_request r
+                WHERE r.reservation_id = o.reservation_id AND r.reserved_at IS NOT NULL)) AS orphan_orders,
+          (SELECT COUNT(*) FROM appointment_order o
+             WHERE o.slot_id = #{slotId} AND (
+               (o.status NOT IN ('CANCELLED','EXPIRED') AND EXISTS
+                 (SELECT 1 FROM stock_release_record x WHERE x.reservation_id = o.reservation_id AND x.status = 'SUCCEEDED'))
+               OR (o.status IN ('CANCELLED','EXPIRED') AND NOT EXISTS
+                 (SELECT 1 FROM stock_release_record x WHERE x.reservation_id = o.reservation_id)))) AS invalid_release,
+          (SELECT COUNT(*) FROM appointment_order o
+             WHERE o.slot_id = #{slotId} AND o.status IN ('PENDING_CONFIRM','CONFIRMED','CHECKED_IN','SERVING')
+               AND NOT EXISTS (SELECT 1 FROM active_booking_guard g
+                 WHERE g.appointment_id = o.id AND g.reservation_id = o.reservation_id
+                   AND g.user_id = o.user_id AND g.item_id = o.item_id
+                   AND g.service_date = o.service_date)) AS invalid_guard,
+          ((SELECT COUNT(*) FROM appointment_reservation_request r
+              WHERE r.slot_id = #{slotId} AND (r.created_at &gt; #{stableBefore} OR r.updated_at &gt; #{stableBefore}))
+           + (SELECT COUNT(*) FROM appointment_order o
+              WHERE o.slot_id = #{slotId} AND (o.created_at &gt; #{stableBefore} OR o.updated_at &gt; #{stableBefore}))
+           + (SELECT COUNT(*) FROM stock_release_record x
+              WHERE x.slot_id = #{slotId} AND (x.created_at &gt; #{stableBefore} OR x.updated_at &gt; #{stableBefore}))) AS recent_activity
+    </select>
+    <select id="selectActiveReservations" resultType="com.civicflow.appointment.mapper.StockReconciliationMapper$ActiveReservation">
+        SELECT user_id, reservation_id FROM appointment_order
+        WHERE slot_id = #{slotId} AND status IN ('PENDING_CONFIRM','CONFIRMED','CHECKED_IN','SERVING')
+        ORDER BY id LIMIT #{limit}
+    </select>
+</mapper>

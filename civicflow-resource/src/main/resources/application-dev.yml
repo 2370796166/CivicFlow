@@ -1,0 +1,23 @@
+spring:
+  config:
+    import: "optional:nacos:${spring.application.name}.yaml?group=${NACOS_GROUP:CIVICFLOW_GROUP}&refreshEnabled=true"
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${NACOS_USERNAME:}
+      password: ${NACOS_PASSWORD:}
+      discovery:
+        namespace: ${NACOS_NAMESPACE:dev}
+        group: ${NACOS_GROUP:CIVICFLOW_GROUP}
+      config:
+        namespace: ${NACOS_NAMESPACE:dev}
+        group: ${NACOS_GROUP:CIVICFLOW_GROUP}
+  datasource:
+    url: "${CIVICFLOW_RESOURCE_DB_URL:jdbc:mysql://127.0.0.1:${MYSQL_PORT:3306}/civicflow_resource?useUnicode=true&characterEncoding=UTF-8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true}"
+    username: ${CIVICFLOW_RESOURCE_DB_APP_USERNAME:civicflow_resource_app}
+    password: ${CIVICFLOW_RESOURCE_DB_APP_PASSWORD:}
+  flyway:
+    enabled: true
+    url: "${CIVICFLOW_RESOURCE_DB_URL:jdbc:mysql://127.0.0.1:${MYSQL_PORT:3306}/civicflow_resource?useUnicode=true&characterEncoding=UTF-8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true}"
+    user: ${CIVICFLOW_RESOURCE_DB_MIGRATION_USERNAME:civicflow_resource_migration}
+    password: ${CIVICFLOW_RESOURCE_DB_MIGRATION_PASSWORD:}

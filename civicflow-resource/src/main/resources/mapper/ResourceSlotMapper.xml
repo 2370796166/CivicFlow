@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.civicflow.resource.mapper.ResourceSlotMapper">
+    <sql id="columns">id, outlet_id, item_id, service_date, start_time, end_time, total_quota,
+        release_at, check_in_start, check_in_end, status, config_version, consumed_hint, version,
+        created_by, updated_by, created_at, updated_at, deleted</sql>
+    <sql id="futureWhere">
+        deleted = 0 AND service_date &gt;= #{today} AND status IN ('SCHEDULED','OPEN','SUSPENDED')
+    </sql>
+    <select id="countFutureByOutlet" resultType="long">
+        SELECT COUNT(*) FROM resource_slot WHERE outlet_id = #{outletId} AND <include refid="futureWhere"/>
+    </select>
+    <select id="countFutureByItem" resultType="long">
+        SELECT COUNT(*) FROM resource_slot WHERE item_id = #{itemId} AND <include refid="futureWhere"/>
+    </select>
+    <select id="countFutureByWindow" resultType="long">
+        SELECT COUNT(DISTINCT s.id) FROM resource_slot s
+        JOIN service_window w ON w.id = #{windowId} AND w.deleted = 0 AND w.outlet_id = s.outlet_id
+        JOIN window_item_rel r ON r.window_id = w.id AND r.item_id = s.item_id AND r.deleted = 0
+        WHERE s.deleted = 0 AND s.service_date &gt;= #{today}
+          AND s.status IN ('SCHEDULED','OPEN','SUSPENDED')
+    </select>
+    <select id="selectActiveById" resultType="com.civicflow.resource.entity.ResourceSlotEntity">
+        SELECT <include refid="columns"/> FROM resource_slot WHERE id = #{id} AND deleted = 0
+    </select>
+    <sql id="snapshotColumns">
+        s.id AS slot_id,s.outlet_id,s.item_id,o.name AS outlet_name,i.name AS item_name,
+        s.service_date,s.start_time,s.end_time,s.total_quota,s.release_at,
+        s.check_in_start,s.check_in_end,s.status,s.config_version
+    </sql>
+    <select id="selectSnapshotById" resultType="com.civicflow.resource.dto.response.SlotSnapshotRow">
+        SELECT <include refid="snapshotColumns"/> FROM resource_slot s
+        JOIN service_outlet o ON o.id = s.outlet_id AND o.deleted = 0
+        JOIN service_item i ON i.id = s.item_id AND i.deleted = 0
+        WHERE s.id = #{id} AND s.deleted = 0
+    </select>
+    <select id="selectByIdForUpdate" resultType="com.civicflow.resource.entity.ResourceSlotEntity">
+        SELECT <include refid="columns"/> FROM resource_slot WHERE id = #{id} AND deleted = 0 FOR UPDATE
+    </select>
+    <select id="selectExact" resultType="com.civicflow.resource.entity.ResourceSlotEntity">
+        SELECT <include refid="columns"/> FROM resource_slot
+        WHERE outlet_id = #{outletId} AND item_id = #{itemId} AND service_date = #{serviceDate}
+          AND start_time = #{startTime} AND end_time = #{endTime} AND deleted = 0
+        LIMIT 1
+    </select>
+    <select id="countOverlapping" resultType="long">
+        SELECT COUNT(*) FROM resource_slot
+        WHERE outlet_id = #{outletId} AND item_id = #{itemId} AND service_date = #{serviceDate}
+          AND deleted = 0 AND start_time &lt; #{endTime} AND end_time &gt; #{startTime}
+        <if test="excludedId != null">AND id != #{excludedId}</if>
+    </select>
+    <select id="countEnabledOffering" resultType="long">
+        SELECT COUNT(*) FROM service_window w
+        JOIN window_item_rel r ON r.window_id = w.id AND r.item_id = #{itemId} AND r.deleted = 0
+        WHERE w.outlet_id = #{outletId} AND w.status = 'ENABLED' AND w.deleted = 0
+    </select>
+    <sql id="adminWhere">
+        deleted = 0
+        <if test="outletId != null">AND outlet_id = #{outletId}</if>
+        <if test="itemId != null">AND item_id = #{itemId}</if>
+        <if test="dateFrom != null">AND service_date &gt;= #{dateFrom}</if>
+        <if test="dateTo != null">AND service_date &lt;= #{dateTo}</if>
+        <if test="status != null">AND status = #{status}</if>
+    </sql>
+    <select id="selectAdminPage" resultType="com.civicflow.resource.entity.ResourceSlotEntity">
+        SELECT <include refid="columns"/> FROM resource_slot WHERE <include refid="adminWhere"/>
+        ORDER BY service_date, start_time, id LIMIT #{size} OFFSET #{offset}
+    </select>
+    <select id="countAdminPage" resultType="long">
+        SELECT COUNT(*) FROM resource_slot WHERE <include refid="adminWhere"/>
+    </select>
+    <select id="selectPreheatSnapshotCandidates" resultType="com.civicflow.resource.dto.response.SlotSnapshotRow">
+        SELECT <include refid="snapshotColumns"/> FROM resource_slot s
+        JOIN service_outlet o ON o.id = s.outlet_id AND o.deleted = 0
+        JOIN service_item i ON i.id = s.item_id AND i.deleted = 0
+        WHERE s.deleted = 0 AND s.id &gt; #{afterId}
+          AND s.release_at &gt;= #{releaseFrom} AND s.release_at &lt; #{releaseTo}
+          AND s.status IN ('SCHEDULED','SUSPENDED')
+        ORDER BY s.id LIMIT #{size}
+    </select>
+    <select id="selectReconciliationCandidates" resultType="com.civicflow.resource.dto.response.SlotSnapshotRow">
+        SELECT <include refid="snapshotColumns"/> FROM resource_slot s
+        JOIN service_outlet o ON o.id = s.outlet_id AND o.deleted = 0
+        JOIN service_item i ON i.id = s.item_id AND i.deleted = 0
+        WHERE s.deleted = 0 AND s.id &gt; #{afterId}
+          AND s.release_at &lt;= #{at}
+          AND (s.service_date &gt; #{today}
+               OR (s.service_date = #{today} AND s.end_time &gt; #{localTime}))
+          AND s.status IN ('OPEN','SCHEDULED','SUSPENDED')
+        ORDER BY s.id LIMIT #{size}
+    </select>
+    <update id="updateDraftDetails">
+        UPDATE resource_slot SET outlet_id = #{outletId}, item_id = #{itemId},
+            service_date = #{serviceDate}, start_time = #{startTime}, end_time = #{endTime},
+            total_quota = #{totalQuota}, release_at = #{releaseAt},
+            check_in_start = #{checkInStart}, check_in_end = #{checkInEnd},
+            config_version = config_version + 1, version = version + 1, updated_by = #{actorId},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND deleted = 0 AND status IN ('DRAFT') AND version = #{expectedVersion}
+    </update>
+    <update id="updateStatus">
+        UPDATE resource_slot SET status = #{status}, config_version = config_version + 1,
+            version = version + 1, updated_by = #{actorId}, updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND deleted = 0 AND version = #{expectedVersion}
+          AND status IN ('DRAFT','SCHEDULED','OPEN','SUSPENDED')
+    </update>
+    <update id="updateQuota">
+        UPDATE resource_slot SET total_quota = #{totalQuota}, config_version = config_version + 1,
+            version = version + 1, updated_by = #{actorId}, updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND deleted = 0 AND config_version = #{expectedConfigVersion}
+          AND status IN ('DRAFT','SCHEDULED','OPEN','SUSPENDED')
+    </update>
+</mapper>

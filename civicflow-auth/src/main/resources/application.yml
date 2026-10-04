@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: civicflow-auth
+  profiles:
+    default: dev
+
+mybatis-plus:
+  configuration:
+    default-enum-type-handler: org.apache.ibatis.type.EnumTypeHandler
+
+server:
+  port: ${CIVICFLOW_AUTH_PORT:8081}
+
+civicflow:
+  auth:
+    jwt:
+      issuer: ${CIVICFLOW_AUTH_JWT_ISSUER:https://auth.civicflow.local}
+      access-audience: ${CIVICFLOW_AUTH_JWT_AUDIENCE:civicflow-api}
+      access-token-ttl: ${CIVICFLOW_AUTH_ACCESS_TTL:PT15M}
+      refresh-token-ttl: ${CIVICFLOW_AUTH_REFRESH_TTL:P7D}
+      clock-skew: ${CIVICFLOW_AUTH_CLOCK_SKEW:PT30S}
+      active-key-id: ${CIVICFLOW_AUTH_JWT_ACTIVE_KID:}
+      keys:
+        - kid: ${CIVICFLOW_AUTH_JWT_ACTIVE_KID:}
+          public-key: ${CIVICFLOW_AUTH_JWT_PUBLIC_KEY:}
+          private-key: ${CIVICFLOW_AUTH_JWT_PRIVATE_KEY:}
+    mobile-protection:
+      key-version: ${CIVICFLOW_AUTH_MOBILE_KEY_VERSION:1}
+      encryption-key: ${CIVICFLOW_AUTH_MOBILE_ENCRYPTION_KEY:}
+      hmac-key: ${CIVICFLOW_AUTH_MOBILE_HMAC_KEY:}
+    bcrypt-strength: ${CIVICFLOW_AUTH_BCRYPT_STRENGTH:12}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never

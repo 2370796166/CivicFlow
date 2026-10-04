@@ -1,0 +1,52 @@
+spring:
+  cloud:
+    nacos:
+      discovery:
+        enabled: false
+      config:
+        enabled: false
+    sentinel:
+      enabled: false
+    openfeign:
+      sentinel:
+        enabled: false
+  datasource:
+    url: jdbc:h2:mem:civicflow_appointment;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+  flyway:
+    enabled: false
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-h2.sql
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: false
+      direct:
+        auto-startup: false
+
+civicflow:
+  appointment:
+    check-in:
+      allow-test-key: true
+    jwt:
+      allow-test-decoder: true
+    preheat:
+      enabled: false
+    reconciliation:
+      enabled: false
+    recovery:
+      enabled: false
+    resource-client:
+      url: http://localhost
+
+management:
+  health:
+    nacos:
+      enabled: false
+    rabbit:
+      enabled: false
+    redis:
+      enabled: false

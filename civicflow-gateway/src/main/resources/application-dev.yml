@@ -1,0 +1,18 @@
+spring:
+  config:
+    import: "optional:nacos:${spring.application.name}.yaml?group=${NACOS_GROUP:CIVICFLOW_GROUP}&refreshEnabled=true"
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${NACOS_USERNAME:}
+      password: ${NACOS_PASSWORD:}
+      discovery:
+        namespace: ${NACOS_NAMESPACE:dev}
+        group: ${NACOS_GROUP:CIVICFLOW_GROUP}
+      config:
+        namespace: ${NACOS_NAMESPACE:dev}
+        group: ${NACOS_GROUP:CIVICFLOW_GROUP}
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:localhost:8858}
+

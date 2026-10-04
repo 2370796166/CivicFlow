@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.civicflow.appointment.mapper.AppointmentReservationRequestMapper">
+    <!-- The first contender freezes the canonical event. Retries must reload that event. -->
+    <update id="saveReservedEvent">
+        UPDATE appointment_reservation_request
+        SET status='RESERVED', reserved_at=#{request.reservedAt},
+            reservation_expires_at=#{request.reservationExpiresAt}, event_json=#{request.eventJson},
+            updated_at=CURRENT_TIMESTAMP(3)
+        WHERE id=#{request.id} AND status='CREATED'
+    </update>
+    <!-- A publisher must never roll back a consumer's PERSISTED projection. -->
+    <update id="recordPublication">
+        UPDATE appointment_reservation_request
+        SET status=#{request.status}, publish_attempts=#{request.publishAttempts},
+            last_error_code=#{request.lastErrorCode}, next_recovery_at=#{request.nextRecoveryAt},
+            updated_at=CURRENT_TIMESTAMP(3)
+        WHERE id=#{request.id} AND status IN ('RESERVED','PUBLISH_UNKNOWN')
+    </update>
+    <sql id="columns">id,reservation_id,user_id,idempotency_key_hash,payload_hash,slot_id,
+        outlet_id,item_id,service_date,slot_start_time,slot_end_time,outlet_name_snapshot,
+        item_name_snapshot,total_quota,release_at,close_at,slot_status,slot_config_version,
+        status,failure_code,event_json,trace_id,reserved_at,reservation_expires_at,
+        publish_attempts,last_error_code,next_recovery_at,recovery_owner,recovery_lease_until,
+        created_at,updated_at</sql>
+    <select id="selectRecoverable" resultType="com.civicflow.appointment.entity.AppointmentReservationRequestEntity">
+        SELECT <include refid="columns"/> FROM appointment_reservation_request
+        WHERE status IN ('CREATED','RESERVED','PUBLISH_UNKNOWN','COMPENSATION_PENDING')
+          AND next_recovery_at &lt;= #{now}
+          AND (recovery_lease_until IS NULL OR recovery_lease_until &lt;= #{now})
+        ORDER BY next_recovery_at,id LIMIT #{size}
+    </select>
+    <update id="claimRecovery">
+        UPDATE appointment_reservation_request
+        SET recovery_owner = #{owner}, recovery_lease_until = #{leaseUntil},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+          AND status IN ('CREATED','RESERVED','PUBLISH_UNKNOWN','COMPENSATION_PENDING')
+          AND next_recovery_at &lt;= #{now}
+          AND (recovery_lease_until IS NULL OR recovery_lease_until &lt;= #{now})
+    </update>
+</mapper>

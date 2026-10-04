@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: civicflow-queue
+  profiles:
+    default: dev
+  rabbitmq:
+    listener:
+      simple:
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 5
+          initial-interval: 1s
+          multiplier: 2
+          max-interval: 10s
+
+mybatis-plus:
+  configuration:
+    default-enum-type-handler: org.apache.ibatis.type.EnumTypeHandler
+
+server:
+  port: ${CIVICFLOW_QUEUE_PORT:8084}
+
+civicflow:
+  queue:
+    jwt:
+      issuer: ${CIVICFLOW_JWT_ISSUER:https://auth.civicflow.local}
+      audience: ${CIVICFLOW_JWT_AUDIENCE:civicflow-api}
+      jwk-set-uri: ${CIVICFLOW_JWKS_URI:http://civicflow-auth:8081/.well-known/jwks.json}
+    appointment-service-token: ${CIVICFLOW_QUEUE_APPOINTMENT_SERVICE_JWT:}
+    resource-service-token: ${CIVICFLOW_QUEUE_RESOURCE_SERVICE_JWT:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never

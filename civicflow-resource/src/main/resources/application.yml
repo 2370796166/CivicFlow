@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: civicflow-resource
+  profiles:
+    default: dev
+
+mybatis-plus:
+  configuration:
+    default-enum-type-handler: org.apache.ibatis.type.EnumTypeHandler
+
+server:
+  port: ${CIVICFLOW_RESOURCE_PORT:8082}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+civicflow:
+  resource:
+    jwt:
+      issuer: ${CIVICFLOW_JWT_ISSUER:https://auth.civicflow.local}
+      audience: ${CIVICFLOW_JWT_AUDIENCE:civicflow-api}
+      service-audience: ${CIVICFLOW_RESOURCE_SERVICE_JWT_AUDIENCE:civicflow-resource}
+      jwk-set-uri: ${CIVICFLOW_JWKS_URI:http://civicflow-auth:8081/.well-known/jwks.json}
+    contact-protection:
+      key-version: ${CIVICFLOW_CONTACT_KEY_VERSION:1}
+      encryption-key: ${CIVICFLOW_CONTACT_ENCRYPTION_KEY:}
+      idempotency-hmac-key: ${CIVICFLOW_RESOURCE_IDEMPOTENCY_HMAC_KEY:}

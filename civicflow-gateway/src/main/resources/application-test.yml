@@ -1,0 +1,24 @@
+spring:
+  cloud:
+    nacos:
+      discovery:
+        enabled: false
+      config:
+        enabled: false
+    sentinel:
+      enabled: false
+
+civicflow:
+  gateway:
+    jwt:
+      jwk-set-uri: http://127.0.0.1:1/.well-known/jwks.json
+    rate-limit:
+      login-permits: 100
+      login-window: PT1S
+      reservation-permits: 100
+      reservation-window: PT1S
+
+management:
+  health:
+    nacos:
+      enabled: false

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.civicflow.resource.mapper.ResourceSlotDayLockMapper">
+    <insert id="insertIgnore">
+        INSERT IGNORE INTO resource_slot_day_lock
+            (id, outlet_id, item_id, service_date, created_at, updated_at)
+        VALUES (#{id}, #{outletId}, #{itemId}, #{serviceDate}, #{createdAt}, #{updatedAt})
+    </insert>
+    <select id="selectForUpdate" resultType="com.civicflow.resource.entity.ResourceSlotDayLockEntity">
+        SELECT id, outlet_id, item_id, service_date, created_at, updated_at
+        FROM resource_slot_day_lock
+        WHERE outlet_id = #{outletId} AND item_id = #{itemId} AND service_date = #{serviceDate}
+        FOR UPDATE
+    </select>
+</mapper>

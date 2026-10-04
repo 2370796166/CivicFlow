@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.civicflow.queue.mapper.QueueTicketMapper">
+    <select id="selectByAppointment" resultType="com.civicflow.queue.entity.QueueTicketEntity">
+        SELECT * FROM queue_ticket WHERE appointment_id=#{appointmentId} LIMIT 1
+    </select>
+    <insert id="createCounter">
+        INSERT IGNORE INTO queue_ticket_counter(outlet_id,service_date,next_number)
+        VALUES(#{outletId},#{date},0)
+    </insert>
+    <update id="incrementCounter">
+        UPDATE queue_ticket_counter SET next_number=next_number+1
+        WHERE outlet_id=#{outletId} AND service_date=#{date}
+    </update>
+    <select id="currentCounter" resultType="int">
+        SELECT next_number FROM queue_ticket_counter
+        WHERE outlet_id=#{outletId} AND service_date=#{date} FOR UPDATE
+    </select>
+    <select id="lockNext" resultType="com.civicflow.queue.entity.QueueTicketEntity">
+        SELECT * FROM queue_ticket WHERE outlet_id=#{outlet} AND service_date=#{date}
+        AND status='WAITING' AND item_id IN
+        <foreach collection="items" item="item" open="(" separator="," close=")">#{item}</foreach>
+        ORDER BY priority DESC, checked_in_at ASC, id ASC LIMIT 1 FOR UPDATE SKIP LOCKED
+    </select>
+    <update id="transition">
+        UPDATE queue_ticket SET status=#{to}, version=version+1, updated_at=UTC_TIMESTAMP(3),
+        <choose>
+            <when test="to == 'CALLED' and from == 'WAITING'">called_at=UTC_TIMESTAMP(3),called_window_id=#{window},work_session_id=#{session},call_count=call_count+1,</when>
+            <when test="to == 'CALLED' and from == 'CALLED'">called_at=UTC_TIMESTAMP(3),call_count=call_count+1,</when>
+            <when test="to == 'SERVING'">serving_at=UTC_TIMESTAMP(3),</when>
+            <when test="to == 'MISSED'">missed_at=UTC_TIMESTAMP(3),</when>
+            <when test="to == 'COMPLETED'">completed_at=UTC_TIMESTAMP(3),result_code=#{result},</when>
+        </choose>
+        id=id WHERE id=#{id} AND status=#{from} AND version=#{version}
+        <if test="from != 'WAITING'">AND called_window_id=#{window} AND work_session_id=#{session}</if>
+    </update>
+    <select id="ahead" resultType="long">
+        SELECT COUNT(*) FROM queue_ticket WHERE outlet_id=#{outlet} AND service_date=#{date}
+        AND item_id=#{item} AND status='WAITING' AND
+        (priority &gt; #{priority} OR (priority=#{priority} AND
+        (checked_in_at &lt; #{checkedInAt} OR (checked_in_at=#{checkedInAt} AND id &lt; #{id}))))
+    </select>
+    <select id="currentCall" resultType="com.civicflow.queue.entity.QueueTicketEntity">
+        SELECT * FROM queue_ticket WHERE outlet_id=#{outlet} AND service_date=#{date}
+        AND status IN ('CALLED','SERVING') ORDER BY called_at DESC,id DESC LIMIT 1
+    </select>
+    <select id="countByStatus" resultType="long">
+        SELECT COUNT(*) FROM queue_ticket WHERE outlet_id=#{outlet} AND service_date=#{date} AND status=#{status}
+    </select>
+    <select id="ownCurrent" resultType="com.civicflow.queue.entity.QueueTicketEntity">
+        SELECT * FROM queue_ticket WHERE user_id=#{user} AND service_date=#{date}
+        <if test="appointment != null">AND appointment_id=#{appointment}</if>
+        ORDER BY id DESC LIMIT 20
+    </select>
+    <select id="currentBySession" resultType="com.civicflow.queue.entity.QueueTicketEntity">
+        SELECT * FROM queue_ticket WHERE work_session_id=#{session} AND status IN ('CALLED','SERVING') LIMIT 1
+    </select>
+    <select id="overview" resultType="com.civicflow.queue.mapper.QueueTicketMapper$OverviewRow">
+        SELECT item_id AS itemId,called_window_id AS windowId,status,COUNT(*) AS count
+        FROM queue_ticket WHERE outlet_id=#{outlet} AND service_date=#{date}
+        GROUP BY item_id,called_window_id,status ORDER BY item_id,called_window_id,status
+    </select>
+</mapper>

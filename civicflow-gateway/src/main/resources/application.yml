@@ -1,0 +1,55 @@
+spring:
+  application:
+    name: civicflow-gateway
+  profiles:
+    default: dev
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: civicflow-auth
+              uri: lb://civicflow-auth
+              predicates:
+                - Path=/api/v1/auth/**,/api/v1/user/me,/api/v1/admin/users,/api/v1/admin/users/**
+            - id: civicflow-resource
+              uri: lb://civicflow-resource
+              predicates:
+                - Path=/api/v1/user/outlets,/api/v1/user/outlets/**,/api/v1/user/slots,/api/v1/staff/scopes,/api/v1/admin/outlets,/api/v1/admin/outlets/**,/api/v1/admin/items,/api/v1/admin/items/**,/api/v1/admin/windows,/api/v1/admin/windows/**,/api/v1/admin/slots,/api/v1/admin/slots/**
+            - id: civicflow-appointment
+              uri: lb://civicflow-appointment
+              predicates:
+                - Path=/api/v1/user/reservations,/api/v1/user/reservations/**,/api/v1/user/appointments,/api/v1/user/appointments/**,/api/v1/admin/appointments,/api/v1/admin/appointments/**,/api/v1/admin/reconciliations,/api/v1/admin/reconciliations/**,/api/v1/admin/stock/slots/**
+            - id: civicflow-queue
+              uri: lb://civicflow-queue
+              predicates:
+                - Path=/api/v1/user/check-ins,/api/v1/staff/check-ins,/api/v1/user/queue-tickets/**,/api/v1/staff/work-sessions,/api/v1/staff/work-sessions/**,/api/v1/staff/queue-tickets/**,/api/v1/admin/queues/**
+
+server:
+  port: ${CIVICFLOW_GATEWAY_PORT:8080}
+
+civicflow:
+  gateway:
+    jwt:
+      issuer: ${CIVICFLOW_AUTH_JWT_ISSUER:https://auth.civicflow.local}
+      audience: ${CIVICFLOW_AUTH_JWT_AUDIENCE:civicflow-api}
+      jwk-set-uri: ${CIVICFLOW_GATEWAY_JWK_SET_URI:http://civicflow-auth:8081/.well-known/jwks.json}
+      clock-skew: ${CIVICFLOW_AUTH_CLOCK_SKEW:PT30S}
+    cors:
+      allowed-origins: ${CIVICFLOW_GATEWAY_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+      allow-credentials: ${CIVICFLOW_GATEWAY_CORS_ALLOW_CREDENTIALS:true}
+    rate-limit:
+      login-permits: ${CIVICFLOW_GATEWAY_LOGIN_RATE_PERMITS:10}
+      login-window: ${CIVICFLOW_GATEWAY_LOGIN_RATE_WINDOW:PT60S}
+      reservation-permits: ${CIVICFLOW_GATEWAY_RESERVATION_RATE_PERMITS:3}
+      reservation-window: ${CIVICFLOW_GATEWAY_RESERVATION_RATE_WINDOW:PT1S}
+      max-reservation-body-bytes: ${CIVICFLOW_GATEWAY_RESERVATION_BODY_LIMIT:4096}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never

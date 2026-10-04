@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.civicflow.auth.mapper.RefreshTokenMapper">
+    <select id="selectByHash" resultType="com.civicflow.auth.entity.RefreshTokenEntity">
+        SELECT id, token_hash, user_id, family_id, status, issued_at, expires_at, revoked_at,
+               replaced_by_hash, client_fingerprint_hash, created_at, updated_at
+        FROM refresh_token WHERE token_hash = #{tokenHash}
+    </select>
+
+    <select id="selectByHashForUpdate" resultType="com.civicflow.auth.entity.RefreshTokenEntity">
+        SELECT id, token_hash, user_id, family_id, status, issued_at, expires_at, revoked_at,
+               replaced_by_hash, client_fingerprint_hash, created_at, updated_at
+        FROM refresh_token WHERE token_hash = #{tokenHash} FOR UPDATE
+    </select>
+
+    <update id="markRotated">
+        UPDATE refresh_token
+        SET status = 'ROTATED', revoked_at = #{now}, replaced_by_hash = #{replacedByHash}, updated_at = #{now}
+        WHERE id = #{id} AND status = 'ACTIVE'
+    </update>
+
+    <update id="revokeFamily">
+        UPDATE refresh_token
+        SET status = 'REVOKED', revoked_at = COALESCE(revoked_at, #{now}), updated_at = #{now}
+        WHERE family_id = #{familyId} AND status IN ('ACTIVE', 'ROTATED')
+    </update>
+
+    <update id="revokeActiveByUser">
+        UPDATE refresh_token
+        SET status = 'REVOKED', revoked_at = #{now}, updated_at = #{now}
+        WHERE user_id = #{userId} AND status = 'ACTIVE'
+    </update>
+</mapper>

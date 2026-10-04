@@ -1,0 +1,73 @@
+spring:
+  application:
+    name: civicflow-appointment
+  profiles:
+    default: dev
+  rabbitmq:
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        default-requeue-rejected: false
+
+mybatis-plus:
+  configuration:
+    default-enum-type-handler: org.apache.ibatis.type.EnumTypeHandler
+
+server:
+  port: ${CIVICFLOW_APPOINTMENT_PORT:8083}
+  tomcat:
+    accept-count: 2048
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+civicflow:
+  appointment:
+    environment: ${CIVICFLOW_ENV:dev}
+    check-in:
+      signing-key-base64: ${CIVICFLOW_CHECKIN_SIGNING_KEY:}
+      key-id: ${CIVICFLOW_CHECKIN_KEY_ID:checkin-v1}
+      token-ttl: ${CIVICFLOW_CHECKIN_TOKEN_TTL:2m}
+    jwt:
+      issuer: ${CIVICFLOW_JWT_ISSUER:https://auth.civicflow.local}
+      audience: ${CIVICFLOW_JWT_AUDIENCE:civicflow-api}
+      jwk-set-uri: ${CIVICFLOW_JWKS_URI:http://civicflow-auth:8081/.well-known/jwks.json}
+    resource-client:
+      service-token: ${CIVICFLOW_APPOINTMENT_RESOURCE_SERVICE_JWT:}
+    stock:
+      reservation-ttl: ${CIVICFLOW_RESERVATION_TTL:10m}
+      retention-after-close: ${CIVICFLOW_STOCK_RETENTION:2d}
+    reservation:
+      confirm-deadline: ${CIVICFLOW_APPOINTMENT_CONFIRM_DEADLINE:5m}
+      publish-confirm-timeout: ${CIVICFLOW_APPOINTMENT_PUBLISH_CONFIRM_TIMEOUT:3s}
+      publish-max-attempts: ${CIVICFLOW_APPOINTMENT_PUBLISH_MAX_ATTEMPTS:3}
+      consumer-max-attempts: ${CIVICFLOW_APPOINTMENT_CONSUMER_MAX_ATTEMPTS:3}
+      poll-after-ms: ${CIVICFLOW_APPOINTMENT_POLL_AFTER_MS:500}
+    recovery:
+      enabled: ${CIVICFLOW_APPOINTMENT_RECOVERY_ENABLED:true}
+      fixed-delay: ${CIVICFLOW_APPOINTMENT_RECOVERY_DELAY:10s}
+      retry-delay: ${CIVICFLOW_APPOINTMENT_RECOVERY_RETRY_DELAY:30s}
+      lease: ${CIVICFLOW_APPOINTMENT_RECOVERY_LEASE:30s}
+      batch-size: ${CIVICFLOW_APPOINTMENT_RECOVERY_BATCH_SIZE:50}
+    preheat:
+      enabled: ${CIVICFLOW_STOCK_PREHEAT_ENABLED:true}
+      fixed-delay: ${CIVICFLOW_STOCK_PREHEAT_DELAY:60s}
+      future-window: ${CIVICFLOW_STOCK_PREHEAT_WINDOW:24h}
+      page-size: ${CIVICFLOW_STOCK_PREHEAT_PAGE_SIZE:100}
+    reconciliation:
+      enabled: ${CIVICFLOW_STOCK_RECONCILIATION_ENABLED:true}
+      fixed-delay: ${CIVICFLOW_STOCK_RECONCILIATION_DELAY:5m}
+      grace-period: ${CIVICFLOW_STOCK_RECONCILIATION_GRACE:2m}
+      slot-delay: ${CIVICFLOW_STOCK_RECONCILIATION_SLOT_DELAY:50ms}
+      page-size: ${CIVICFLOW_STOCK_RECONCILIATION_PAGE_SIZE:50}
+      max-slots-per-run: ${CIVICFLOW_STOCK_RECONCILIATION_MAX_SLOTS:500}

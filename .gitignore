@@ -1,0 +1,41 @@
+# Maven
+target/
+*.log
+
+# Frontend / Python caches and generated test output
+node_modules/
+.pnpm-store/
+dist/
+coverage/
+test-results/
+playwright-report/
+*.tsbuildinfo
+__pycache__/
+*.py[cod]
+
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# Visual Studio Code
+.vscode/
+
+# Operating systems
+.DS_Store
+Thumbs.db
+
+# Local environment and secrets
+.env
+.local/
+.env.*
+!.env.example
+
+# Local-only project guidance and design documents
+/docs/
+/AGENTS.md
+/CivicFlow-AI开发提示词.md

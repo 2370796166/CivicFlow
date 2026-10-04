@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.civicflow.appointment.mapper.AppointmentOrderMapper">
+    <sql id="columns">id,reservation_id,user_id,slot_id,outlet_id,item_id,service_date,
+        slot_start_time,slot_end_time,outlet_name_snapshot,item_name_snapshot,status,
+        confirm_deadline,confirmed_at,cancelled_at,expired_at,checked_in_at,serving_at,
+        completed_at,no_show_at,cancel_reason,qr_nonce_hash,qr_expires_at,qr_key_id,
+        checkin_claim_id,queue_ticket_id,version,created_at,updated_at</sql>
+    <select id="selectByReservationId" resultType="com.civicflow.appointment.entity.AppointmentOrderEntity">
+        SELECT <include refid="columns"/> FROM appointment_order
+        WHERE reservation_id = #{reservationId} LIMIT 1
+    </select>
+    <select id="selectOwnedById" resultType="com.civicflow.appointment.entity.AppointmentOrderEntity">
+        SELECT <include refid="columns"/> FROM appointment_order
+        WHERE id = #{id} AND user_id = #{userId} LIMIT 1
+    </select>
+    <sql id="ownedWhere">
+        user_id = #{userId}
+        <if test="serviceDate != null">AND service_date = #{serviceDate}</if>
+        <if test="status != null">AND status = #{status}</if>
+    </sql>
+    <select id="selectOwnedPage" resultType="com.civicflow.appointment.entity.AppointmentOrderEntity">
+        SELECT <include refid="columns"/> FROM appointment_order
+        WHERE <include refid="ownedWhere"/>
+        ORDER BY service_date DESC, slot_start_time DESC, id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+    <select id="countOwnedPage" resultType="long">
+        SELECT COUNT(*) FROM appointment_order WHERE <include refid="ownedWhere"/>
+    </select>
+    <update id="confirm">
+        UPDATE appointment_order SET status='CONFIRMED', confirmed_at=CURRENT_TIMESTAMP(3),
+        version=version+1, updated_at=CURRENT_TIMESTAMP(3)
+        WHERE id=#{id} AND user_id=#{userId} AND version=#{version}
+        AND status='PENDING_CONFIRM' AND confirm_deadline >= CURRENT_TIMESTAMP(3)
+    </update>
+    <update id="cancel">
+        UPDATE appointment_order SET status='CANCELLED', cancelled_at=CURRENT_TIMESTAMP(3),
+        cancel_reason=#{reason}, version=version+1, updated_at=CURRENT_TIMESTAMP(3)
+        WHERE id=#{id} AND user_id=#{userId} AND version=#{version}
+        AND status IN ('PENDING_CONFIRM','CONFIRMED')
+        AND (status='CONFIRMED' OR confirm_deadline >= CURRENT_TIMESTAMP(3))
+        AND #{cancelCutoff} > CURRENT_TIMESTAMP(3)
+    </update>
+    <update id="expire">
+        UPDATE appointment_order SET status='EXPIRED', expired_at=CURRENT_TIMESTAMP(3),
+        version=version+1, updated_at=CURRENT_TIMESTAMP(3)
+        WHERE id=#{id} AND status='PENDING_CONFIRM' AND confirm_deadline &lt;= CURRENT_TIMESTAMP(3)
+    </update>
+    <select id="selectExpiredIds" resultType="long">
+        SELECT id FROM appointment_order WHERE status='PENDING_CONFIRM'
+        AND confirm_deadline &lt;= CURRENT_TIMESTAMP(3) ORDER BY confirm_deadline,id LIMIT #{limit}
+    </select>
+    <update id="setQr">
+        UPDATE appointment_order SET qr_nonce_hash=#{hash},qr_expires_at=#{expiresAt},
+        qr_key_id=#{keyId},version=version+1,updated_at=CURRENT_TIMESTAMP(3)
+        WHERE id=#{id} AND user_id=#{userId} AND status='CONFIRMED'
+    </update>
+    <update id="claimCheckIn">
+        UPDATE appointment_order SET status='CHECKED_IN',checked_in_at=CURRENT_TIMESTAMP(3),
+        checkin_claim_id=#{claimId},version=version+1,updated_at=CURRENT_TIMESTAMP(3)
+        WHERE id=#{id} AND user_id=#{userId} AND outlet_id=#{outletId}
+        AND status='CONFIRMED' AND qr_nonce_hash=#{hash}
+        AND qr_expires_at &gt; CURRENT_TIMESTAMP(3)
+    </update>
+    <update id="linkTicket">
+        UPDATE appointment_order SET queue_ticket_id=#{ticketId},version=version+1,
+        updated_at=CURRENT_TIMESTAMP(3)
+        WHERE id=#{id} AND checkin_claim_id=#{claimId} AND status IN ('CHECKED_IN','SERVING','COMPLETED','NO_SHOW')
+        AND queue_ticket_id IS NULL
+    </update>
+    <update id="applyQueueState">
+        UPDATE appointment_order SET status=#{to},version=version+1,updated_at=CURRENT_TIMESTAMP(3),
+        <choose>
+            <when test="to == 'SERVING'">serving_at=CURRENT_TIMESTAMP(3),</when>
+            <when test="to == 'COMPLETED'">completed_at=CURRENT_TIMESTAMP(3),</when>
+            <when test="to == 'NO_SHOW'">no_show_at=CURRENT_TIMESTAMP(3),</when>
+        </choose>
+        id=id WHERE id=#{id} AND queue_ticket_id=#{ticketId} AND status=#{from}
+    </update>
+</mapper>
