@@ -1,0 +1,308 @@
+name: ${COMPOSE_PROJECT_NAME:-compose}
+
+x-logging: &local-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-app: &app
+  restart: unless-stopped
+  stop_grace_period: 30s
+  logging: *local-logging
+  init: true
+  networks: [civicflow-local]
+  healthcheck:
+    test: ["CMD-SHELL", "java -cp /app/health Healthcheck $${HEALTH_PORT}"]
+    interval: 15s
+    timeout: 6s
+    retries: 20
+    start_period: 60s
+
+x-bootstrap: &bootstrap
+  image: civicflow/bootstrap:local
+  build:
+    context: ../..
+    dockerfile: deploy/docker/bootstrap.Dockerfile
+  logging: *local-logging
+  env_file: .env
+  networks: [civicflow-local]
+
+services:
+  mysql:
+    logging: *local-logging
+    image: mysql:8.4.11
+    container_name: civicflow-mysql
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in deploy/compose/.env}
+      CIVICFLOW_AUTH_DB_APP_USERNAME: ${CIVICFLOW_AUTH_DB_APP_USERNAME:?Set CIVICFLOW_AUTH_DB_APP_USERNAME}
+      CIVICFLOW_AUTH_DB_APP_PASSWORD: ${CIVICFLOW_AUTH_DB_APP_PASSWORD:?Set CIVICFLOW_AUTH_DB_APP_PASSWORD}
+      CIVICFLOW_AUTH_DB_MIGRATION_USERNAME: ${CIVICFLOW_AUTH_DB_MIGRATION_USERNAME:?Set CIVICFLOW_AUTH_DB_MIGRATION_USERNAME}
+      CIVICFLOW_AUTH_DB_MIGRATION_PASSWORD: ${CIVICFLOW_AUTH_DB_MIGRATION_PASSWORD:?Set CIVICFLOW_AUTH_DB_MIGRATION_PASSWORD}
+      CIVICFLOW_RESOURCE_DB_APP_USERNAME: ${CIVICFLOW_RESOURCE_DB_APP_USERNAME:?Set CIVICFLOW_RESOURCE_DB_APP_USERNAME}
+      CIVICFLOW_RESOURCE_DB_APP_PASSWORD: ${CIVICFLOW_RESOURCE_DB_APP_PASSWORD:?Set CIVICFLOW_RESOURCE_DB_APP_PASSWORD}
+      CIVICFLOW_RESOURCE_DB_MIGRATION_USERNAME: ${CIVICFLOW_RESOURCE_DB_MIGRATION_USERNAME:?Set CIVICFLOW_RESOURCE_DB_MIGRATION_USERNAME}
+      CIVICFLOW_RESOURCE_DB_MIGRATION_PASSWORD: ${CIVICFLOW_RESOURCE_DB_MIGRATION_PASSWORD:?Set CIVICFLOW_RESOURCE_DB_MIGRATION_PASSWORD}
+      CIVICFLOW_APPOINTMENT_DB_APP_USERNAME: ${CIVICFLOW_APPOINTMENT_DB_APP_USERNAME:?Set CIVICFLOW_APPOINTMENT_DB_APP_USERNAME}
+      CIVICFLOW_APPOINTMENT_DB_APP_PASSWORD: ${CIVICFLOW_APPOINTMENT_DB_APP_PASSWORD:?Set CIVICFLOW_APPOINTMENT_DB_APP_PASSWORD}
+      CIVICFLOW_APPOINTMENT_DB_MIGRATION_USERNAME: ${CIVICFLOW_APPOINTMENT_DB_MIGRATION_USERNAME:?Set CIVICFLOW_APPOINTMENT_DB_MIGRATION_USERNAME}
+      CIVICFLOW_APPOINTMENT_DB_MIGRATION_PASSWORD: ${CIVICFLOW_APPOINTMENT_DB_MIGRATION_PASSWORD:?Set CIVICFLOW_APPOINTMENT_DB_MIGRATION_PASSWORD}
+      CIVICFLOW_QUEUE_DB_APP_USERNAME: ${CIVICFLOW_QUEUE_DB_APP_USERNAME:?Set CIVICFLOW_QUEUE_DB_APP_USERNAME}
+      CIVICFLOW_QUEUE_DB_APP_PASSWORD: ${CIVICFLOW_QUEUE_DB_APP_PASSWORD:?Set CIVICFLOW_QUEUE_DB_APP_PASSWORD}
+      CIVICFLOW_QUEUE_DB_MIGRATION_USERNAME: ${CIVICFLOW_QUEUE_DB_MIGRATION_USERNAME:?Set CIVICFLOW_QUEUE_DB_MIGRATION_USERNAME}
+      CIVICFLOW_QUEUE_DB_MIGRATION_PASSWORD: ${CIVICFLOW_QUEUE_DB_MIGRATION_PASSWORD:?Set CIVICFLOW_QUEUE_DB_MIGRATION_PASSWORD}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+00:00
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_ROOT_PASSWORD}\" mysql --protocol=socket -uroot -N -e 'SELECT 1' >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    networks:
+      - civicflow-local
+
+  redis:
+    logging: *local-logging
+    image: redis:7.4.11-alpine
+    container_name: civicflow-redis
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in deploy/compose/.env}
+    command:
+      - sh
+      - -c
+      - exec redis-server --appendonly yes --appendfsync everysec --requirepass "$${REDIS_PASSWORD}"
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - civicflow-local
+
+  rabbitmq:
+    logging: *local-logging
+    image: rabbitmq:4.1.8-management-alpine
+    container_name: civicflow-rabbitmq
+    hostname: civicflow-rabbitmq
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:?Set RABBITMQ_USERNAME in deploy/compose/.env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in deploy/compose/.env}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-civicflow}
+    ports:
+      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+    networks:
+      - civicflow-local
+
+  nacos:
+    logging: *local-logging
+    image: nacos/nacos-server:v2.5.4
+    container_name: civicflow-nacos
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      MODE: standalone
+      PREFER_HOST_MODE: hostname
+      NACOS_AUTH_ENABLE: "true"
+      NACOS_AUTH_SYSTEM_TYPE: nacos
+      NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:?Set NACOS_AUTH_TOKEN in deploy/compose/.env}
+      NACOS_AUTH_IDENTITY_KEY: ${NACOS_AUTH_IDENTITY_KEY:?Set NACOS_AUTH_IDENTITY_KEY}
+      NACOS_AUTH_IDENTITY_VALUE: ${NACOS_AUTH_IDENTITY_VALUE:?Set NACOS_AUTH_IDENTITY_VALUE}
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+      JVM_XMN: 128m
+    ports:
+      - "127.0.0.1:${NACOS_PORT:-8848}:8848"
+      - "127.0.0.1:${NACOS_GRPC_PORT:-9848}:9848"
+    volumes:
+      - nacos-data:/home/nacos/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8848/nacos/v1/console/health/readiness >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    networks:
+      - civicflow-local
+
+  nacos-init:
+    # Reuse the exact Nacos image (contains curl); no additional image pull for init.
+    image: nacos/nacos-server:v2.5.4
+    logging: *local-logging
+    depends_on:
+      nacos:
+        condition: service_healthy
+    environment:
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:?Set NACOS_PASSWORD in deploy/compose/.env}
+      NACOS_NAMESPACE: ${NACOS_NAMESPACE:-dev}
+    volumes:
+      - ./nacos/init-nacos.sh:/opt/civicflow/init-nacos.sh:ro
+    entrypoint: ["/bin/sh", "/opt/civicflow/init-nacos.sh"]
+    networks:
+      - civicflow-local
+
+  bootstrap:
+    <<: *bootstrap
+    command: [init]
+    depends_on:
+      mysql: {condition: service_healthy}
+      nacos-init: {condition: service_completed_successfully}
+    volumes:
+      - ../../.local/dev:/state
+      - auth-config:/output/auth
+      - resource-config:/output/resource
+      - appointment-config:/output/appointment
+      - queue-config:/output/queue
+      - gateway-config:/output/gateway
+
+  service-identity:
+    <<: *bootstrap
+    restart: unless-stopped
+    command: [rotate]
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+    volumes:
+      - ../../.local/dev:/state:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import time; from pathlib import Path; assert time.time()-float(Path('/tmp/rotation-ready').read_text()) < 120"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+
+  auth:
+    <<: *app
+    image: civicflow/auth:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend.Dockerfile
+      args: {SERVICE: auth}
+    environment: {HEALTH_PORT: "8081"}
+    volumes: ["auth-config:/config:ro"]
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+
+  admin-init:
+    <<: *bootstrap
+    command: [seed]
+    depends_on:
+      auth: {condition: service_healthy}
+    volumes:
+      - ../../.local/dev:/state
+
+  resource:
+    <<: *app
+    image: civicflow/resource:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend.Dockerfile
+      args: {SERVICE: resource}
+    environment: {HEALTH_PORT: "8082"}
+    volumes: ["resource-config:/config:ro"]
+    depends_on:
+      auth: {condition: service_healthy}
+
+  appointment:
+    <<: *app
+    image: civicflow/appointment:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend.Dockerfile
+      args: {SERVICE: appointment}
+    environment: {HEALTH_PORT: "8083"}
+    volumes: ["appointment-config:/config:ro"]
+    depends_on:
+      resource: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+      service-identity: {condition: service_healthy}
+
+  queue:
+    <<: *app
+    image: civicflow/queue:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend.Dockerfile
+      args: {SERVICE: queue}
+    environment: {HEALTH_PORT: "8084"}
+    volumes: ["queue-config:/config:ro"]
+    depends_on:
+      appointment: {condition: service_healthy}
+
+  gateway:
+    <<: *app
+    image: civicflow/gateway:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend.Dockerfile
+      args: {SERVICE: gateway}
+    environment: {HEALTH_PORT: "8080"}
+    volumes: ["gateway-config:/config:ro"]
+    ports: ["127.0.0.1:${GATEWAY_PORT:-8080}:8080"]
+    depends_on:
+      queue: {condition: service_healthy}
+      admin-init: {condition: service_completed_successfully}
+
+  web:
+    image: civicflow/web:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/web.Dockerfile
+    restart: unless-stopped
+    logging: *local-logging
+    ports: ["127.0.0.1:${WEB_PORT:-5173}:80"]
+    depends_on:
+      gateway: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks: [civicflow-local]
+
+networks:
+  civicflow-local:
+    name: civicflow-local
+    driver: bridge
+
+volumes:
+  auth-config:
+  resource-config:
+  appointment-config:
+  queue-config:
+  gateway-config:
+  mysql-data:
+    name: civicflow-mysql-data
+  redis-data:
+    name: civicflow-redis-data
+  rabbitmq-data:
+    name: civicflow-rabbitmq-data
+  nacos-data:
+    name: civicflow-nacos-data
