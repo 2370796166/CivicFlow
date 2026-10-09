@@ -3,8 +3,10 @@ import { onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminApi } from '@/api/admin'
 import StatePanel from '@/components/StatePanel.vue'
+import WindowStaffDialog from '@/components/WindowStaffDialog.vue'
 import type { AdminItem, AdminResource, AdminWindow, ResourceKind, ResourceStatus } from '@/types/admin'
 import { adminErrorMessage } from '@/utils/adminError'
+import type { ApiError } from '@/types/api'
 
 const props = defineProps<{ kind: ResourceKind }>()
 const titles: Record<ResourceKind, string> = { outlets: '网点管理', items: '事项管理', windows: '窗口管理' }
@@ -18,6 +20,10 @@ const loading = ref(false)
 const loadError = ref(false)
 const busy = ref(false)
 const dialog = ref(false)
+const staffBinding = ref(false), staffWindow = ref<AdminWindow | null>(null)
+const bindingLoading = ref(false), bindingReady = ref(false)
+let bindingGeneration = 0
+let savedBinding: { signature: string; key: string } | null = null
 const editingId = ref('')
 const formError = ref('')
 const maskedContactPhone = ref<string | null>(null)
@@ -111,27 +117,40 @@ async function loadBindingItems() {
   try { const result = await adminApi.resources('items', { page: bindingPage.value, size: 20, status: 'ENABLED' }); bindingItems.value = result.items as AdminItem[]; bindingTotal.value = result.total }
   catch (error) { bindingError.value = adminErrorMessage(error) }
 }
-function openBinding(row: AdminResource) {
+async function openBinding(row: AdminResource) {
   if (!('outletId' in row)) return
-  bindingWindow.value = row as AdminWindow; selectedIds.value = []; bindingPage.value = 1; bindingError.value = ''; binding.value = true
-  void loadBindingItems()
+  const requestGeneration = ++bindingGeneration
+  savedBinding = null
+  bindingWindow.value = { ...row } as AdminWindow; selectedIds.value = []; bindingPage.value = 1; bindingError.value = ''; binding.value = true
+  bindingLoading.value = true; bindingReady.value = false
+  try {
+    const existing = await adminApi.windowItems(row.id)
+    if (requestGeneration !== bindingGeneration || !binding.value || bindingWindow.value?.id !== row.id) return
+    selectedIds.value = existing.itemIds; bindingWindow.value.version = existing.version
+    bindingReady.value = true
+    await loadBindingItems()
+  } catch (error) { if (requestGeneration === bindingGeneration) bindingError.value = adminErrorMessage(error) }
+  finally { if (requestGeneration === bindingGeneration) bindingLoading.value = false }
 }
 async function saveBinding() {
-  if (!bindingWindow.value || busy.value) return
+  if (!bindingWindow.value || busy.value || !bindingReady.value) return
   busy.value = true
-  try { await ElMessageBox.confirm(`将“${bindingWindow.value.name}”的事项绑定替换为当前选择的 ${selectedIds.value.length} 项。现有绑定无法读取，未选择的旧绑定会被移除。确认继续？`, '确认替换事项', { type: 'warning' }) }
+  try { await ElMessageBox.confirm(`将“${bindingWindow.value.name}”的事项绑定更新为当前选择的 ${selectedIds.value.length} 项。确认保存？`, '确认更新事项', { type: 'warning' }) }
   catch { busy.value = false; return }
-  try { await adminApi.bindWindowItems(bindingWindow.value, selectedIds.value); binding.value = false; await load() }
-  catch (error) { bindingError.value = adminErrorMessage(error); await load() }
+  const signature = `${bindingWindow.value.id}:${bindingWindow.value.version}:${[...selectedIds.value].sort().join(',')}`
+  if (savedBinding?.signature !== signature) savedBinding = { signature, key: crypto.randomUUID() }
+  try { await adminApi.bindWindowItems(bindingWindow.value, selectedIds.value, savedBinding.key); binding.value = false; await load() }
+  catch (error) { bindingError.value = adminErrorMessage(error); if ((error as ApiError).status === 409) bindingReady.value = false; await load() }
   finally { busy.value = false }
 }
-watch(() => props.kind, () => { page.value = 1; keyword.value = ''; status.value = ''; void load() })
+watch(binding, value => { if (!value) bindingGeneration += 1 })
+watch(() => props.kind, () => { dialog.value = false; binding.value = false; staffBinding.value = false; page.value = 1; keyword.value = ''; status.value = ''; void load() })
 onMounted(() => { void load() })
 </script>
 
 <template>
   <div class="page-heading">
-    <span class="eyebrow">管理员 / 资源配置</span><h1>{{ titles[kind] }}</h1><p>配置变更由服务端验证状态、引用和版本。</p>
+    <span class="eyebrow">管理员 / 资源配置</span><h1>{{ titles[kind] }}</h1><p>管理服务网点、办理事项和窗口配置。</p>
   </div>
   <div class="content-card admin-card">
     <div class="admin-toolbar">
@@ -235,6 +254,12 @@ onMounted(() => { void load() })
             @click="openBinding(row)"
           >
             绑定事项
+          </el-button><el-button
+            v-if="kind === 'windows'"
+            text
+            @click="staffWindow = row; staffBinding = true"
+          >
+            人员授权
           </el-button><el-button
             text
             type="danger"
@@ -341,7 +366,7 @@ onMounted(() => { void load() })
     destroy-on-close
   >
     <p class="admin-warning">
-      当前接口无法读取已绑定事项。保存会将绑定整体替换为下方选择的事项。
+      已读取当前绑定。保存后，该窗口将办理下方所选事项。
     </p><p
       v-if="bindingError"
       class="admin-error"
@@ -351,6 +376,7 @@ onMounted(() => { void load() })
     </p><el-checkbox-group
       v-model="selectedIds"
       class="admin-checklist"
+      :disabled="bindingLoading || !bindingReady || busy"
     >
       <el-checkbox
         v-for="item in bindingItems"
@@ -371,10 +397,16 @@ onMounted(() => { void load() })
       </el-button><el-button
         type="primary"
         :loading="busy"
+        :disabled="bindingLoading || !bindingReady"
         @click="saveBinding"
       >
         确认替换
       </el-button>
     </div>
   </el-dialog>
+  <WindowStaffDialog
+    v-model="staffBinding"
+    :window="staffWindow"
+    @updated="load"
+  />
 </template>

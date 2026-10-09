@@ -7,6 +7,22 @@
     <sql id="futureWhere">
         deleted = 0 AND service_date &gt;= #{today} AND status IN ('SCHEDULED','OPEN','SUSPENDED')
     </sql>
+    <sql id="userWhere">
+        deleted = 0 AND outlet_id = #{outletId} AND item_id = #{itemId}
+        AND service_date = #{serviceDate} AND status IN ('SCHEDULED','OPEN','SUSPENDED','CLOSED')
+        AND EXISTS (SELECT 1 FROM service_outlet o WHERE o.id = resource_slot.outlet_id AND o.deleted = 0 AND o.status = 'ENABLED')
+        AND EXISTS (SELECT 1 FROM service_item i WHERE i.id = resource_slot.item_id AND i.deleted = 0 AND i.status = 'ENABLED')
+        AND EXISTS (SELECT 1 FROM service_window w JOIN window_item_rel r ON r.window_id = w.id
+            WHERE w.outlet_id = resource_slot.outlet_id AND r.item_id = resource_slot.item_id
+            AND w.status = 'ENABLED' AND w.deleted = 0 AND r.deleted = 0)
+    </sql>
+    <select id="selectUserPage" resultType="com.civicflow.resource.entity.ResourceSlotEntity">
+        SELECT <include refid="columns"/> FROM resource_slot WHERE <include refid="userWhere"/>
+        ORDER BY start_time, id LIMIT #{size} OFFSET #{offset}
+    </select>
+    <select id="countUserPage" resultType="long">
+        SELECT COUNT(*) FROM resource_slot WHERE <include refid="userWhere"/>
+    </select>
     <select id="countFutureByOutlet" resultType="long">
         SELECT COUNT(*) FROM resource_slot WHERE outlet_id = #{outletId} AND <include refid="futureWhere"/>
     </select>

@@ -7,11 +7,14 @@ import StatePanel from '@/components/StatePanel.vue'
 import { userApi } from '@/api/user'
 import { appointmentStatusText, canCancel, queueStatusText, queueTerminal, remaining } from '@/utils/userFlow'
 import type { Appointment, QueueProgress } from '@/types/user'
+import { bookingErrorMessage } from '@/utils/bookingError'
+import type { ApiError } from '@/types/api'
 
 const route = useRoute()
 const record = ref<Appointment | null>(null)
 const progress = ref<QueueProgress | null>(null)
 const qr = ref('')
+const qrToken = ref(''), checkInNotice = ref('')
 const qrExpires = ref('')
 const now = ref(Date.now())
 const loading = ref(false)
@@ -39,7 +42,7 @@ async function load() {
     record.value = next
     if (next.status === 'CHECKED_IN' || next.status === 'SERVING') scheduleQueue(0)
     else { clearTimeout(queueTimer); progress.value = null }
-    if (next.status !== 'CONFIRMED') { qr.value = ''; clearTimeout(qrTimer) }
+    if (next.status !== 'CONFIRMED') { qr.value = ''; qrToken.value = ''; clearTimeout(qrTimer) }
   } catch { error.value = true }
   finally { loading.value = false; scheduleState() }
 }
@@ -70,17 +73,37 @@ async function command(kind: 'confirm' | 'cancel') {
   } finally { action.value = ''; scheduleState() }
 }
 async function issueQr() {
-  if (!record.value || record.value.status !== 'CONFIRMED' || qrBusy.value || document.hidden) return
+  if (!record.value || record.value.status !== 'CONFIRMED' || qrBusy.value || action.value === 'check-in' || document.hidden) return
   qrBusy.value = true
+  const requestedId = record.value.appointmentId
   try {
-    const result = await userApi.checkInToken(record.value.appointmentId, record.value.outletId)
-    if (disposed) return
-    qr.value = await QRCode.toDataURL(result.token, { width: 260, margin: 2, errorCorrectionLevel: 'M' })
+    const result = await userApi.checkInToken(requestedId, record.value.outletId)
+    if (disposed || requestedId !== id.value || record.value?.status !== 'CONFIRMED') return
+    const image = await QRCode.toDataURL(result.token, { width: 260, margin: 2, errorCorrectionLevel: 'M' })
+    if (disposed || requestedId !== id.value || record.value?.status !== 'CONFIRMED') return
+    qrToken.value = result.token
+    qr.value = image
     qrExpires.value = result.expiresAt
     clearTimeout(qrTimer)
     qrTimer = setTimeout(() => { qr.value = ''; void issueQr() }, Math.max(1000, Date.parse(result.expiresAt) - Date.now() - 20000))
-  } catch { qr.value = ''; qrExpires.value = '' }
+  } catch { qr.value = ''; qrToken.value = ''; qrExpires.value = '' }
   finally { qrBusy.value = false }
+}
+async function checkIn() {
+  if (!record.value || record.value.status !== 'CONFIRMED' || !qrToken.value || action.value || qrBusy.value) return
+  action.value = 'check-in'; checkInNotice.value = ''; clearTimeout(qrTimer)
+  try {
+    const ticket = await userApi.checkIn(record.value.outletId, qrToken.value)
+    checkInNotice.value = `签到成功，排队号 ${ticket.ticketNo}。`
+    qr.value = ''; qrToken.value = ''
+    await load()
+  } catch (failure) {
+    checkInNotice.value = bookingErrorMessage((failure as ApiError).code, '签到结果暂不确定，请刷新预约状态后核实。')
+    await load()
+  } finally {
+    action.value = ''
+    if (record.value?.status === 'CONFIRMED' && qrToken.value) qrTimer = setTimeout(() => { void issueQr() }, Math.max(1000, Date.parse(qrExpires.value) - Date.now() - 20000))
+  }
 }
 async function loadQueue() {
   if (!record.value || disposed || !['CHECKED_IN', 'SERVING'].includes(record.value.status)) return
@@ -99,7 +122,7 @@ function visibilityChanged() {
   if (!document.hidden && record.value?.status === 'CONFIRMED' && (!qr.value || Date.parse(qrExpires.value) - Date.now() < 30000)) void issueQr()
   if (record.value && ['CHECKED_IN', 'SERVING'].includes(record.value.status)) scheduleQueue(document.hidden ? 15000 : 0)
 }
-watch(id, () => { record.value = null; progress.value = null; qr.value = ''; expiryChecked = false; actionKeys.clear(); void load() })
+watch(id, () => { record.value = null; progress.value = null; qr.value = ''; qrToken.value = ''; checkInNotice.value = ''; expiryChecked = false; actionKeys.clear(); void load() })
 onMounted(() => { disposed = false; clock = setInterval(() => {
   now.value = Date.now()
   if (!expiryChecked && record.value?.status === 'PENDING_CONFIRM' && record.value.confirmDeadline && Date.parse(record.value.confirmDeadline) <= now.value) { expiryChecked = true; void load() }
@@ -108,20 +131,138 @@ onUnmounted(() => { disposed = true; clearInterval(clock); clearTimeout(queueTim
 </script>
 
 <template>
-  <div class="page-heading"><span class="eyebrow">普通用户 / 我的预约</span><h1>预约详情</h1><p>预约和排队状态以服务端返回为准。</p></div>
+  <div class="page-heading">
+    <span class="eyebrow">普通用户 / 我的预约</span><h1>预约详情</h1><p>预约和排队状态以服务端返回为准。</p>
+  </div>
   <div class="content-card user-card">
-    <RouterLink class="link-text" to="/user/appointments">← 返回我的预约</RouterLink>
-    <StatePanel v-if="loading && !record" state="loading" />
-    <StatePanel v-else-if="error && !record" state="error" @retry="load" />
+    <RouterLink
+      class="link-text"
+      to="/user/appointments"
+    >
+      ← 返回我的预约
+    </RouterLink>
+    <StatePanel
+      v-if="loading && !record"
+      state="loading"
+    />
+    <StatePanel
+      v-else-if="error && !record"
+      state="error"
+      @retry="load"
+    />
     <template v-else-if="record">
-      <div class="detail-title"><div><h2>{{ record.itemName }}</h2><p class="muted">{{ record.outletName }}</p></div><el-tag size="large">{{ appointmentStatusText[record.status] }}</el-tag></div>
-      <dl class="detail-grid"><div><dt>办理日期</dt><dd>{{ record.serviceDate }}</dd></div><div><dt>预约时段</dt><dd>{{ record.slotStartTime.slice(0, 5) }}–{{ record.slotEndTime.slice(0, 5) }}</dd></div><div><dt>预约编号</dt><dd>{{ record.appointmentId }}</dd></div></dl>
-      <div v-if="record.status === 'PENDING_CONFIRM'" class="notice-box"><strong>请确认预约</strong><p>确认截止倒计时：{{ countdown }}。倒计时只作提醒，是否可确认由服务端裁决。</p><div class="action-row"><el-button type="primary" :loading="action === 'confirm'" :disabled="!!action" @click="command('confirm')">确认预约</el-button><el-button :loading="action === 'cancel'" :disabled="!!action" @click="command('cancel')">取消预约</el-button></div></div>
-      <div v-else-if="record.status === 'CONFIRMED'" class="notice-box"><strong>签到二维码</strong><p>到达网点后，在可签到时段内获取并出示二维码。二维码约 2 分钟有效，刷新后旧码失效。</p><div v-if="qr" class="qr-wrap"><img :src="qr" alt="签到二维码" /><span>有效期剩余 {{ qrCountdown }}</span></div><el-button :loading="qrBusy" @click="issueQr">{{ qr ? '刷新二维码' : '获取二维码' }}</el-button></div>
-      <div v-if="record.status === 'CONFIRMED'" class="action-row"><el-button :loading="action === 'cancel'" :disabled="!!action" @click="command('cancel')">取消预约</el-button></div>
-      <div v-if="record.status === 'CHECKED_IN' || record.status === 'SERVING'" class="notice-box"><strong>排队进度</strong><template v-if="progress"><p>排队号：{{ progress.ticket.ticketNo }} · 当前状态：{{ queueStatusText[progress.ticket.status] ?? progress.ticket.status }}</p><p>前方 {{ progress.aheadCount }} 人<span v-if="progress.currentCall"> · 当前叫号 {{ progress.currentCall }}</span></p></template><p v-else>正在读取排队票；签到建票可能需要片刻。</p><el-button @click="loadQueue">刷新进度</el-button></div>
-      <div v-if="error" class="inline-error" role="alert">最新状态读取失败，请刷新后再操作。<el-button text @click="load">重试</el-button></div>
-      <p v-if="!canCancel(record.status) && !['CHECKED_IN', 'SERVING'].includes(record.status)" class="muted">此预约当前没有可执行操作。</p>
+      <div class="detail-title">
+        <div>
+          <h2>{{ record.itemName }}</h2><p class="muted">
+            {{ record.outletName }}
+          </p>
+        </div><el-tag size="large">
+          {{ appointmentStatusText[record.status] }}
+        </el-tag>
+      </div>
+      <dl class="detail-grid">
+        <div><dt>办理日期</dt><dd>{{ record.serviceDate }}</dd></div><div><dt>预约时段</dt><dd>{{ record.slotStartTime.slice(0, 5) }}–{{ record.slotEndTime.slice(0, 5) }}</dd></div><div><dt>预约编号</dt><dd>{{ record.appointmentId }}</dd></div>
+      </dl>
+      <div
+        v-if="record.status === 'PENDING_CONFIRM'"
+        class="notice-box"
+      >
+        <strong>请确认预约</strong><p>确认截止倒计时：{{ countdown }}。倒计时只作提醒，是否可确认由服务端裁决。</p><div class="action-row">
+          <el-button
+            type="primary"
+            :loading="action === 'confirm'"
+            :disabled="!!action"
+            @click="command('confirm')"
+          >
+            确认预约
+          </el-button><el-button
+            :loading="action === 'cancel'"
+            :disabled="!!action"
+            @click="command('cancel')"
+          >
+            取消预约
+          </el-button>
+        </div>
+      </div>
+      <div
+        v-else-if="record.status === 'CONFIRMED'"
+        class="notice-box"
+      >
+        <strong>签到二维码</strong><p>到达网点后，在可签到时段内获取并出示二维码，也可点击现场签到。二维码约 2 分钟有效，刷新后旧码失效。</p><div
+          v-if="qr"
+          class="qr-wrap"
+        >
+          <img
+            :src="qr"
+            alt="签到二维码"
+          ><span>有效期剩余 {{ qrCountdown }}</span>
+        </div><div class="action-row">
+          <el-button
+            :loading="qrBusy"
+            :disabled="!!action"
+            @click="issueQr"
+          >
+            {{ qr ? '刷新二维码' : '获取二维码' }}
+          </el-button><el-button
+            v-if="qrToken"
+            type="primary"
+            :loading="action === 'check-in'"
+            :disabled="!!action || qrBusy"
+            @click="checkIn"
+          >
+            现场签到
+          </el-button>
+        </div>
+      </div>
+      <p
+        v-if="checkInNotice"
+        role="status"
+        class="notice-box"
+      >
+        {{ checkInNotice }}
+      </p>
+      <div
+        v-if="record.status === 'CONFIRMED'"
+        class="action-row"
+      >
+        <el-button
+          :loading="action === 'cancel'"
+          :disabled="!!action"
+          @click="command('cancel')"
+        >
+          取消预约
+        </el-button>
+      </div>
+      <div
+        v-if="record.status === 'CHECKED_IN' || record.status === 'SERVING'"
+        class="notice-box"
+      >
+        <strong>排队进度</strong><template v-if="progress">
+          <p>排队号：{{ progress.ticket.ticketNo }} · 当前状态：{{ queueStatusText[progress.ticket.status] ?? progress.ticket.status }}</p><p>前方 {{ progress.aheadCount }} 人<span v-if="progress.currentCall"> · 当前叫号 {{ progress.currentCall }}</span></p>
+        </template><p v-else>
+          正在读取排队票；签到建票可能需要片刻。
+        </p><el-button @click="loadQueue">
+          刷新进度
+        </el-button>
+      </div>
+      <div
+        v-if="error"
+        class="inline-error"
+        role="alert"
+      >
+        最新状态读取失败，请刷新后再操作。<el-button
+          text
+          @click="load"
+        >
+          重试
+        </el-button>
+      </div>
+      <p
+        v-if="!canCancel(record.status) && !['CHECKED_IN', 'SERVING'].includes(record.status)"
+        class="muted"
+      >
+        此预约当前没有可执行操作。
+      </p>
     </template>
   </div>
 </template>

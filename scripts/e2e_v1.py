@@ -30,14 +30,22 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BASE = "http://127.0.0.1:8080"
+PORT_OFFSET = int(os.environ.get("CIVICFLOW_E2E_PORT_OFFSET", "0"))
+if not 0 <= PORT_OFFSET <= 32000:
+    raise ValueError("CIVICFLOW_E2E_PORT_OFFSET must be between 0 and 32000")
+APP_PORT = 8080 + PORT_OFFSET
+WEB_PORT = 5173 + PORT_OFFSET
+NACOS_PORT = 18848 + PORT_OFFSET
+REDIS_PORT = 16379 + PORT_OFFSET
+RABBIT_PORT = 15673 + PORT_OFFSET
+BASE = f"http://127.0.0.1:{APP_PORT}"
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 RUN = secrets.token_hex(4).upper()
 MYSQL_CONTAINER = "civicflow-e2e-mysql-" + RUN.lower()
 NACOS_CONTAINER = "civicflow-e2e-nacos-" + RUN.lower()
 REDIS_CONTAINER = "civicflow-e2e-redis-" + RUN.lower()
 RABBIT_CONTAINER = "civicflow-e2e-rabbit-" + RUN.lower()
-MYSQL_PORT = 33306
+MYSQL_PORT = 33306 + PORT_OFFSET
 SESSION = requests.Session()
 
 
@@ -60,9 +68,9 @@ def local_env():
     for key in list(values):
         if key.startswith(("CIVICFLOW_", "SPRING_", "NACOS_", "REDIS_", "RABBITMQ_")):
             del values[key]
-    values.update(REDIS_HOST="127.0.0.1", REDIS_PORT="16379", REDIS_PASSWORD=secrets.token_urlsafe(24),
-                  VITE_PROXY_TARGET="http://127.0.0.1:8080",
-                  RABBITMQ_HOST="127.0.0.1", RABBITMQ_PORT="15673", RABBITMQ_USERNAME="e2e",
+    values.update(REDIS_HOST="127.0.0.1", REDIS_PORT=str(REDIS_PORT), REDIS_PASSWORD=secrets.token_urlsafe(24),
+                  VITE_PROXY_TARGET=BASE,
+                  RABBITMQ_HOST="127.0.0.1", RABBITMQ_PORT=str(RABBIT_PORT), RABBITMQ_USERNAME="e2e",
                   RABBITMQ_PASSWORD=secrets.token_urlsafe(24), RABBITMQ_VHOST="e2e",
                   NACOS_USERNAME="nacos", NACOS_PASSWORD=secrets.token_urlsafe(24),
                   NACOS_NAMESPACE="e2e", NACOS_AUTH_TOKEN=base64.b64encode(secrets.token_bytes(48)).decode(),
@@ -70,6 +78,9 @@ def local_env():
     for service in ("AUTH", "RESOURCE", "APPOINTMENT", "QUEUE"):
         for kind in ("APP", "MIGRATION"):
             values[f"CIVICFLOW_{service}_DB_{kind}_USERNAME"] = f"cf_{service.lower()}_{kind.lower()}"
+    for index, service in enumerate(("GATEWAY", "AUTH", "RESOURCE", "APPOINTMENT", "QUEUE")):
+        values[f"CIVICFLOW_{service}_PORT"] = str(APP_PORT + index)
+    values["CIVICFLOW_GATEWAY_CORS_ALLOWED_ORIGINS"] = f"http://127.0.0.1:{WEB_PORT},http://localhost:{WEB_PORT}"
     return values
 
 
@@ -149,7 +160,7 @@ def service_jwt(private_key, kid, service_name, scope):
 
 
 def ensure_nacos(environment):
-    base = "http://127.0.0.1:18848/nacos"
+    base = f"http://127.0.0.1:{NACOS_PORT}/nacos"
     credentials = {"username": environment["NACOS_USERNAME"],
                    "password": environment["NACOS_PASSWORD"]}
     login = requests.post(base + "/v1/auth/login", data=credentials, timeout=8)
@@ -183,7 +194,7 @@ def publish_service_tokens(environment, private_key, kid, nacos_token):
             "civicflow.queue.appointment-service-token": service_jwt(private_key, kid, "civicflow-queue", "appointments.checkin appointments.queue-state")},
     }
     for name, config in configs.items():
-        response = requests.post("http://127.0.0.1:18848/nacos/v1/cs/configs", data={
+        response = requests.post(f"http://127.0.0.1:{NACOS_PORT}/nacos/v1/cs/configs", data={
             "accessToken": nacos_token, "tenant": environment["NACOS_NAMESPACE"],
             "dataId": f"civicflow-{name}.yaml", "group": "CIVICFLOW_GROUP", "type": "yaml",
             "content": "\n".join(f"{key}: {value}" for key, value in config.items())}, timeout=10)
@@ -191,40 +202,48 @@ def publish_service_tokens(environment, private_key, kid, nacos_token):
             raise RuntimeError("Nacos service-token configuration publish failed")
 
 
-def browser_flow(users, password, order, outlet, processes, temporary, environment):
+def browser_flow(users, password, order, outlet, processes, temporary, environment, slot=None, item=None, window=None):
     log = open(Path(temporary) / "web.log", "w", encoding="utf-8")
-    process = subprocess.Popen(["node", "node_modules/vite/bin/vite.js", "--host", "127.0.0.1", "--port", "5173", "--strictPort"],
+    process = subprocess.Popen(["node", "node_modules/vite/bin/vite.js", "--host", "127.0.0.1", "--port", str(WEB_PORT), "--strictPort"],
         cwd=ROOT / "civicflow-web", env=environment, stdout=log, stderr=subprocess.STDOUT)
     processes.append((process, log))
     for _ in range(45):
         try:
-            if requests.get("http://127.0.0.1:5173", timeout=2).status_code == 200:
+            if requests.get(f"http://127.0.0.1:{WEB_PORT}", timeout=2).status_code == 200:
                 break
         except requests.RequestException:
             pass
         time.sleep(1)
     else:
         raise TimeoutError("Vite not ready")
+    screenshots = ROOT / "target/e2e" / ("ui-" + RUN)
+    screenshots.mkdir(parents=True, exist_ok=True)
     seed = {"admin": users[0][1], "user": users[1][1], "staff": users[2][1],
-            "password": password, "appointmentId": order["appointmentId"], "outletId": outlet["id"]}
+            "password": password, "baseUrl": f"http://127.0.0.1:{WEB_PORT}", "outletId": outlet["id"], "windowId": window["id"],
+            "outletName": outlet["name"], "windowName": window["name"],
+            "screenshotDir": str(screenshots), "itemName": item["name"]}
+    if order:
+        seed["appointmentId"] = order["appointmentId"]
+    else:
+        seed.update(itemId=item["id"], serviceDate=slot["serviceDate"])
     result = subprocess.run(["node", "e2e/live-flow.mjs"], input=json.dumps(seed),
         cwd=ROOT / "civicflow-web", text=True, capture_output=True, timeout=180)
     if result.returncode:
-        raise RuntimeError("Browser E2E failed: " + result.stderr[-3500:])
+        raise RuntimeError("Browser E2E failed: " + safe_error(result.stderr[-3500:]).replace(password, "[REDACTED_PASSWORD]"))
     result = json.loads(result.stdout.strip().splitlines()[-1])
     print("BROWSER " + json.dumps(result), flush=True)
     return result
 
 
 def main(load_only=False):
-    for port in (8080, 8081, 8082, 8083, 8084, 5173, 33306, 16379, 15673, 18848, 19848):
+    for port in (*range(APP_PORT, APP_PORT + 5), WEB_PORT, MYSQL_PORT, REDIS_PORT, RABBIT_PORT, NACOS_PORT, NACOS_PORT + 1000):
         with socket.socket() as probe:
             probe.settimeout(1)
             if probe.connect_ex(("127.0.0.1", port)) == 0:
                 raise RuntimeError(f"E2E requires unused localhost port {port}; existing processes were not changed")
     print(f"START {RUN} {datetime.now(timezone.utc).isoformat()}", flush=True)
     environment = local_env()
-    environment["NACOS_SERVER_ADDR"] = "127.0.0.1:18848"
+    environment["NACOS_SERVER_ADDR"] = f"127.0.0.1:{NACOS_PORT}"
     environment["MYSQL_ROOT_PASSWORD"] = secrets.token_urlsafe(24)
     for service in ("AUTH", "RESOURCE", "APPOINTMENT", "QUEUE"):
         for kind in ("APP", "MIGRATION"):
@@ -248,8 +267,8 @@ def main(load_only=False):
         "CIVICFLOW_CONTACT_ENCRYPTION_KEY": base64.b64encode(secrets.token_bytes(32)).decode(),
         "CIVICFLOW_RESOURCE_IDEMPOTENCY_HMAC_KEY": base64.b64encode(secrets.token_bytes(32)).decode(),
         "CIVICFLOW_CHECKIN_SIGNING_KEY": base64.b64encode(secrets.token_bytes(32)).decode(),
-        "CIVICFLOW_JWKS_URI": "http://127.0.0.1:8081/.well-known/jwks.json",
-        "CIVICFLOW_GATEWAY_JWK_SET_URI": "http://127.0.0.1:8081/.well-known/jwks.json",
+        "CIVICFLOW_JWKS_URI": f"http://127.0.0.1:{APP_PORT + 1}/.well-known/jwks.json",
+        "CIVICFLOW_GATEWAY_JWK_SET_URI": f"http://127.0.0.1:{APP_PORT + 1}/.well-known/jwks.json",
     })
     environment["SPRING_APPLICATION_JSON"] = json.dumps({"civicflow.auth.jwt.keys": [
         {"kid": kid, "public-key": environment["CIVICFLOW_AUTH_JWT_PUBLIC_KEY"],
@@ -264,7 +283,7 @@ def main(load_only=False):
     with tempfile.TemporaryDirectory(prefix="civicflow-e2e-") as temporary:
         try:
             subprocess.run(["docker", "run", "-d", "--rm", "--name", NACOS_CONTAINER,
-                "-p", "127.0.0.1:18848:8848", "-p", "127.0.0.1:19848:9848",
+                "-p", f"127.0.0.1:{NACOS_PORT}:8848", "-p", f"127.0.0.1:{NACOS_PORT + 1000}:9848",
                 "-e", "MODE=standalone", "-e", "NACOS_AUTH_ENABLE=true",
                 "-e", "NACOS_AUTH_SYSTEM_TYPE=nacos",
                 "-e", "NACOS_AUTH_TOKEN=" + environment["NACOS_AUTH_TOKEN"],
@@ -274,7 +293,7 @@ def main(load_only=False):
                 "nacos/nacos-server:v2.5.4"], check=True, capture_output=True, text=True)
             for _ in range(90):
                 try:
-                    if requests.get("http://127.0.0.1:18848/nacos/v1/console/health/readiness",
+                    if requests.get(f"http://127.0.0.1:{NACOS_PORT}/nacos/v1/console/health/readiness",
                                     timeout=2).status_code == 200:
                         break
                 except requests.RequestException:
@@ -302,11 +321,11 @@ def main(load_only=False):
                         rotation_errors.append(type(error).__name__)
             threading.Thread(target=rotate, daemon=True).start()
             subprocess.run(["docker", "run", "-d", "--rm", "--name", REDIS_CONTAINER,
-                "-p", "127.0.0.1:16379:6379", "-e", "REDIS_PASSWORD=" + environment["REDIS_PASSWORD"],
+                "-p", f"127.0.0.1:{REDIS_PORT}:6379", "-e", "REDIS_PASSWORD=" + environment["REDIS_PASSWORD"],
                 "redis:7.4.11-alpine", "sh", "-c", 'exec redis-server --requirepass "$REDIS_PASSWORD"'],
                 check=True, capture_output=True)
             subprocess.run(["docker", "run", "-d", "--rm", "--name", RABBIT_CONTAINER,
-                "-p", "127.0.0.1:15673:5672", "-e", "RABBITMQ_DEFAULT_USER=e2e",
+                "-p", f"127.0.0.1:{RABBIT_PORT}:5672", "-e", "RABBITMQ_DEFAULT_USER=e2e",
                 "-e", "RABBITMQ_DEFAULT_PASS=" + environment["RABBITMQ_PASSWORD"],
                 "-e", "RABBITMQ_DEFAULT_VHOST=e2e", "rabbitmq:4.1.8-management-alpine"],
                 check=True, capture_output=True)
@@ -349,7 +368,7 @@ def main(load_only=False):
                 process = subprocess.Popen(["java", "-jar", str(runtime_jar)], cwd=ROOT,
                                            env=environment, stdout=log, stderr=subprocess.STDOUT)
                 processes.append((process, log))
-                wait_health(8081 + index if name != "gateway" else 8080, process)
+                wait_health(APP_PORT + 1 + index if name != "gateway" else APP_PORT, process)
                 print(f"{name} healthy", flush=True)
                 if name == "auth":
                     base_id = int(time.time() * 1000) * 1000 + secrets.randbelow(100)
@@ -385,12 +404,11 @@ def main(load_only=False):
                          {"outletId": outlet["id"], "code": "E2E_WIN_" + RUN, "name": "E2E window"}, RUN + "-window")
             api("PUT", f"/api/v1/admin/windows/{window['id']}/items", admin,
                 {"itemIds": [item["id"]], "version": window["version"]}, RUN + "-binding")
-            mysql(f"INSERT INTO civicflow_resource.staff_window_scope(id,staff_user_id,outlet_id,window_id,deleted) VALUES ({base_id + 4},{users[2][0]},{outlet['id']},{window['id']},0);")
             now = datetime.now(SHANGHAI).replace(microsecond=0)
             start = now + timedelta(minutes=12)
             end = start + timedelta(minutes=30)
             instant = lambda value: value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
-            release_at = now + timedelta(minutes=2)
+            release_at = now + timedelta(seconds=30)
             slot = api("POST", "/api/v1/admin/slots", admin, {
                 "outletId": outlet["id"], "itemId": item["id"],
                 "serviceDate": start.date().isoformat(), "startTime": start.time().isoformat(),
@@ -408,10 +426,8 @@ def main(load_only=False):
             slot = api("PATCH", f"/api/v1/admin/slots/{slot['id']}/status", admin,
                        {"status": "OPEN", "version": slot["version"]}, RUN + "-open")
             api("POST", f"/api/v1/admin/stock/slots/{slot['id']}/preheat", admin)
-            first = api("POST", "/api/v1/user/appointments/reservations", user,
-                        {"slotId": slot["id"]}, RUN + "-reserve1", expected=(202,))
-            order = poll_reservation(user, first["reservationId"], "PENDING_CONFIRM")["appointment"]
-            browser = browser_flow(users, password, order, outlet, processes, temporary, environment)
+            browser = browser_flow(users, password, None, outlet, processes, temporary, environment, slot, item, window)
+            order = api("GET", f"/api/v1/user/appointments/{browser['appointmentId']}", user)
             ticket = {"id": browser["ticketId"]}
             assert redis("HGET", stock_key, "remaining") == "2", "completion returned consumed stock"
             assert redis("GET", "cf:v1:dev:active:" + tag + ":user:" + str(users[1][0])) == ""

@@ -11,6 +11,7 @@ import com.civicflow.resource.dto.request.CreateItemRequest;
 import com.civicflow.resource.dto.request.CreateOutletRequest;
 import com.civicflow.resource.dto.request.CreateWindowRequest;
 import com.civicflow.resource.dto.request.ReplaceWindowItemsRequest;
+import com.civicflow.resource.dto.request.ReplaceWindowStaffRequest;
 import com.civicflow.resource.dto.request.UpdateItemRequest;
 import com.civicflow.resource.dto.request.UpdateOutletRequest;
 import com.civicflow.resource.dto.request.UpdateWindowRequest;
@@ -18,11 +19,13 @@ import com.civicflow.resource.dto.response.ItemResponse;
 import com.civicflow.resource.dto.response.OutletResponse;
 import com.civicflow.resource.dto.response.WindowItemsResponse;
 import com.civicflow.resource.dto.response.WindowResponse;
+import com.civicflow.resource.dto.response.WindowStaffResponse;
 import com.civicflow.resource.entity.ResourceAdminAuditEntity;
 import com.civicflow.resource.entity.ResourceAdminIdempotencyEntity;
 import com.civicflow.resource.entity.ServiceItemEntity;
 import com.civicflow.resource.entity.ServiceOutletEntity;
 import com.civicflow.resource.entity.ServiceWindowEntity;
+import com.civicflow.resource.entity.StaffWindowScopeEntity;
 import com.civicflow.resource.entity.WindowItemRelEntity;
 import com.civicflow.resource.enums.ResourceAdminOperation;
 import com.civicflow.resource.enums.ResourceStatus;
@@ -698,6 +701,74 @@ public class ResourceAdminServiceImpl implements ResourceAdminService {
                 Map.of("version", current.getVersion(), "itemIds", before),
                 Map.of("version", current.getVersion() + 1, "itemIds", itemIds));
         return windowItems(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public WindowItemsResponse getWindowItems(long id) {
+        return windowItems(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public WindowStaffResponse getWindowStaff(long id) {
+        ServiceWindowEntity window = requireWindow(id);
+        return new WindowStaffResponse(
+                Long.toString(id),
+                window.getVersion(),
+                scopeMapper.selectDirectStaffIds(id).stream().map(String::valueOf).toList(),
+                scopeMapper.selectInheritedStaffIds(window.getOutletId()).stream()
+                        .map(String::valueOf)
+                        .toList());
+    }
+
+    @Override
+    @Transactional
+    public WindowStaffResponse replaceWindowStaff(
+            long actorId,
+            long id,
+            String idempotencyKey,
+            String requestId,
+            ReplaceWindowStaffRequest request) {
+        List<Long> staffIds =
+                request.staffUserIds().stream()
+                        .map(ResourceAdminServiceImpl::parseId)
+                        .sorted()
+                        .toList();
+        String canonical =
+                id
+                        + "|"
+                        + staffIds.stream().map(String::valueOf).collect(Collectors.joining(","))
+                        + "|"
+                        + request.version();
+        ResourceAdminIdempotencyEntity operation =
+                reserve(
+                        actorId,
+                        ResourceAdminOperation.REPLACE_WINDOW_STAFF,
+                        idempotencyKey,
+                        canonical);
+        if (operation.getResourceId() != null) return getWindowStaff(operation.getResourceId());
+        ServiceWindowEntity window = requireWindowForUpdate(id, request.version());
+        List<Long> before = scopeMapper.selectDirectStaffIds(id);
+        requireUpdated(windowMapper.incrementVersion(id, request.version()));
+        scopeMapper.logicallyDeleteByWindow(id);
+        for (Long staffId : staffIds) {
+            StaffWindowScopeEntity scope = new StaffWindowScopeEntity();
+            scope.setStaffUserId(staffId);
+            scope.setOutletId(window.getOutletId());
+            scope.setWindowId(id);
+            scopeMapper.insert(scope);
+        }
+        bind(operation, id);
+        audit(
+                actorId,
+                "WINDOW",
+                id,
+                operation.getOperation(),
+                requestId,
+                Map.of("version", window.getVersion(), "staffUserIds", before),
+                Map.of("version", window.getVersion() + 1, "staffUserIds", staffIds));
+        return getWindowStaff(id);
     }
 
     private ResourceAdminIdempotencyEntity reserve(

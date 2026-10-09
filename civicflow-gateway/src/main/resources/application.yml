@@ -19,7 +19,7 @@ spring:
             - id: civicflow-appointment
               uri: lb://civicflow-appointment
               predicates:
-                - Path=/api/v1/user/reservations,/api/v1/user/reservations/**,/api/v1/user/appointments,/api/v1/user/appointments/**,/api/v1/admin/appointments,/api/v1/admin/appointments/**,/api/v1/admin/reconciliations,/api/v1/admin/reconciliations/**,/api/v1/admin/stock/slots/**
+                - Path=/api/v1/user/reservations,/api/v1/user/reservations/**,/api/v1/user/appointments,/api/v1/user/appointments/**,/api/v1/admin/appointments,/api/v1/admin/appointments/**,/api/v1/admin/appointment-operation-logs,/api/v1/admin/reconciliations,/api/v1/admin/reconciliations/**,/api/v1/admin/stock/slots/**
             - id: civicflow-queue
               uri: lb://civicflow-queue
               predicates:

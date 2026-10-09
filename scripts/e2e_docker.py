@@ -1,6 +1,6 @@
 """Full seven-step flow against the running Compose stack; unique synthetic data is retained.
 
-Only account/window-scope fixture initialization writes SQL. Business transitions use APIs.
+Business configuration uses APIs; booking, window authorization and check-in use the UI.
 Requires the optional host test tools; the application itself runs entirely in Docker.
 """
 from datetime import datetime, timedelta, timezone
@@ -68,9 +68,6 @@ def main():
                    {'code': prefix, 'name': prefix, 'outletId': outlet['id']}, prefix+'window')
     e.api('PUT', f"/api/v1/admin/windows/{window['id']}/items", admin,
           {'version': window['version'], 'itemIds': [item['id']]}, prefix+'bind')
-    scope_id = int(time.time()*1000)*1000
-    e.mysql(f"INSERT INTO civicflow_resource.staff_window_scope(id,staff_user_id,outlet_id,window_id,deleted) "
-            f"VALUES ({scope_id},{staff_auth['user']['id']},{outlet['id']},{window['id']},0);")
     now = datetime.now(e.SHANGHAI).replace(microsecond=0)
     start = now + timedelta(minutes=15)
     instant = lambda value: value.astimezone(timezone.utc).isoformat()
@@ -86,13 +83,13 @@ def main():
     e.api('PATCH', f"/api/v1/admin/slots/{slot['id']}/status", admin,
           {'version': slot['version'], 'status': 'OPEN'}, prefix+'open')
     e.api('POST', f"/api/v1/admin/stock/slots/{slot['id']}/preheat", admin)
-    first = e.api('POST', '/api/v1/user/appointments/reservations', user,
-                  {'slotId': slot['id']}, prefix+'reserve1', expected=(202,))
-    order = e.poll_reservation(user, first['reservationId'], 'PENDING_CONFIRM')['appointment']
+    screenshots = e.ROOT/'target/e2e'/('ui-'+e.RUN)
+    screenshots.mkdir(parents=True, exist_ok=True)
     browser = subprocess.run(['node', 'e2e/live-flow.mjs'], cwd=e.ROOT/'civicflow-web',
         input=json.dumps({'admin': names['ADMIN'], 'user': names['USER'], 'staff': names['STAFF'],
-                          'password': password, 'appointmentId': order['appointmentId'],
-                          'outletId': outlet['id'], 'outletName': prefix}),
+                          'password': password, 'itemId': item['id'], 'itemName': item['name'],
+                          'serviceDate': slot['serviceDate'], 'windowId': window['id'], 'windowName': prefix,
+                          'outletId': outlet['id'], 'outletName': prefix, 'screenshotDir': str(screenshots)}),
         capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=180)
     if browser.returncode:
         raise RuntimeError('Browser flow: '+e.safe_error(browser.stderr[-2500:]))

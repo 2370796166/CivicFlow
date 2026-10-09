@@ -7,9 +7,11 @@ import com.civicflow.resource.config.SecurityPrincipals;
 import com.civicflow.resource.dto.request.ChangeResourceStatusRequest;
 import com.civicflow.resource.dto.request.CreateWindowRequest;
 import com.civicflow.resource.dto.request.ReplaceWindowItemsRequest;
+import com.civicflow.resource.dto.request.ReplaceWindowStaffRequest;
 import com.civicflow.resource.dto.request.UpdateWindowRequest;
 import com.civicflow.resource.dto.response.WindowItemsResponse;
 import com.civicflow.resource.dto.response.WindowResponse;
+import com.civicflow.resource.dto.response.WindowStaffResponse;
 import com.civicflow.resource.enums.ResourceStatus;
 import com.civicflow.resource.service.ResourceAdminService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -99,6 +101,30 @@ public class AdminWindowController {
         String requestId = RequestIdFilter.current(request);
         return ApiResponse.success(
                 service.changeWindowStatus(
+                        SecurityPrincipals.userId(authentication), id, key, requestId, body),
+                requestId);
+    }
+
+    @GetMapping("/{id}/items")
+    ApiResponse<WindowItemsResponse> getItems(@PathVariable long id, HttpServletRequest request) {
+        return ApiResponse.success(service.getWindowItems(id), RequestIdFilter.current(request));
+    }
+
+    @GetMapping("/{id}/staff")
+    ApiResponse<WindowStaffResponse> getStaff(@PathVariable long id, HttpServletRequest request) {
+        return ApiResponse.success(service.getWindowStaff(id), RequestIdFilter.current(request));
+    }
+
+    @PutMapping("/{id}/staff")
+    ApiResponse<WindowStaffResponse> replaceStaff(
+            JwtAuthenticationToken authentication,
+            @PathVariable long id,
+            @RequestHeader("Idempotency-Key") @NotBlank @Size(max = 128) String key,
+            @Valid @RequestBody ReplaceWindowStaffRequest body,
+            HttpServletRequest request) {
+        String requestId = RequestIdFilter.current(request);
+        return ApiResponse.success(
+                service.replaceWindowStaff(
                         SecurityPrincipals.userId(authentication), id, key, requestId, body),
                 requestId);
     }

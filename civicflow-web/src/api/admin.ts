@@ -1,18 +1,25 @@
 import { api } from './client'
+import type { AdminAppointment, AppointmentLog } from '@/types/admin'
 import type { ApiResponse, Page } from '@/types/api'
-import type { AdminItem, AdminOutlet, AdminResource, AdminSlot, AdminUser, AdminWindow, ReconciliationReport, ResourceKind, ResourceStatus, SlotBatchResult, SlotStatus } from '@/types/admin'
+import type { AdminItem, AdminOutlet, AdminResource, AdminSlot, AdminUser, AdminWindow, ReconciliationReport, ResourceKind, ResourceStatus, SlotBatchResult, SlotStatus, WindowStaff } from '@/types/admin'
 
 async function body<T>(request: Promise<{ data: ApiResponse<T> }>): Promise<T> { return (await request).data.data }
 const key = () => ({ 'Idempotency-Key': crypto.randomUUID() })
 const quiet = { suppressErrorToast: true }
 export const adminApi = {
+  appointments(params: { page: number; size?: number; userId?: string; outletId?: string; serviceDate?: string; status?: string }) { return body(api.get<ApiResponse<Page<AdminAppointment>>>('/admin/appointments', { params, ...quiet })) },
+  appointment(id: string) { return body(api.get<ApiResponse<AdminAppointment>>(`/admin/appointments/${id}`, quiet)) },
+  appointmentLogs(params: { page: number; size?: number; appointmentId?: string; operation?: string }) { return body(api.get<ApiResponse<Page<AppointmentLog>>>('/admin/appointment-operation-logs', { params, ...quiet })) },
   resources(kind: ResourceKind, params: { page: number; size?: number; keyword?: string; status?: string; outletId?: string }) { return body(api.get<ApiResponse<Page<AdminResource>>>(`/admin/${kind}`, { params, ...quiet })) },
   resource(kind: ResourceKind, id: string) { return body(api.get<ApiResponse<AdminResource>>(`/admin/${kind}/${id}`, quiet)) },
   createResource(kind: ResourceKind, value: Record<string, unknown>) { return body(api.post<ApiResponse<AdminResource>>(`/admin/${kind}`, value, { headers: key(), ...quiet })) },
   updateResource(kind: ResourceKind, id: string, value: Record<string, unknown>) { return body(api.put<ApiResponse<AdminResource>>(`/admin/${kind}/${id}`, value, { headers: key(), ...quiet })) },
   resourceStatus(kind: ResourceKind, row: AdminResource, status: ResourceStatus) { return body(api.patch<ApiResponse<AdminResource>>(`/admin/${kind}/${row.id}/status`, { status, version: row.version }, { headers: key(), ...quiet })) },
   deleteResource(kind: ResourceKind, row: AdminResource) { return body(api.delete<ApiResponse<null>>(`/admin/${kind}/${row.id}`, { params: { version: row.version }, headers: key(), ...quiet })) },
-  bindWindowItems(row: AdminWindow, itemIds: string[]) { return body(api.put<ApiResponse<{ windowId: string; version: number; itemIds: string[] }>>(`/admin/windows/${row.id}/items`, { itemIds, version: row.version }, { headers: key(), ...quiet })) },
+  bindWindowItems(row: AdminWindow, itemIds: string[], idempotencyKey: string = crypto.randomUUID()) { return body(api.put<ApiResponse<{ windowId: string; version: number; itemIds: string[] }>>(`/admin/windows/${row.id}/items`, { itemIds, version: row.version }, { headers: { 'Idempotency-Key': idempotencyKey }, ...quiet })) },
+  windowItems(id: string) { return body(api.get<ApiResponse<{ windowId: string; version: number; itemIds: string[] }>>(`/admin/windows/${id}/items`, quiet)) },
+  windowStaff(id: string) { return body(api.get<ApiResponse<WindowStaff>>(`/admin/windows/${id}/staff`, quiet)) },
+  bindWindowStaff(id: string, staffUserIds: string[], version: number, idempotencyKey: string) { return body(api.put<ApiResponse<WindowStaff>>(`/admin/windows/${id}/staff`, { staffUserIds, version }, { headers: { 'Idempotency-Key': idempotencyKey }, ...quiet })) },
   slots(params: { page: number; size?: number; outletId?: string; itemId?: string; dateFrom?: string; dateTo?: string; status?: string }) { return body(api.get<ApiResponse<Page<AdminSlot>>>('/admin/slots', { params, ...quiet })) },
   slot(id: string) { return body(api.get<ApiResponse<AdminSlot>>(`/admin/slots/${id}`, quiet)) },
   createSlot(value: Record<string, unknown>) { return body(api.post<ApiResponse<AdminSlot>>('/admin/slots', value, { headers: key(), ...quiet })) },

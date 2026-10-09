@@ -6,6 +6,7 @@ import com.civicflow.resource.dto.request.CreateItemRequest;
 import com.civicflow.resource.dto.request.CreateOutletRequest;
 import com.civicflow.resource.dto.request.CreateWindowRequest;
 import com.civicflow.resource.dto.request.ReplaceWindowItemsRequest;
+import com.civicflow.resource.dto.request.ReplaceWindowStaffRequest;
 import com.civicflow.resource.dto.request.UpdateItemRequest;
 import com.civicflow.resource.dto.request.UpdateOutletRequest;
 import com.civicflow.resource.dto.request.UpdateWindowRequest;
@@ -13,6 +14,7 @@ import com.civicflow.resource.dto.response.ItemResponse;
 import com.civicflow.resource.dto.response.OutletResponse;
 import com.civicflow.resource.dto.response.WindowItemsResponse;
 import com.civicflow.resource.dto.response.WindowResponse;
+import com.civicflow.resource.dto.response.WindowStaffResponse;
 import com.civicflow.resource.enums.ResourceStatus;
 
 public interface ResourceAdminService {
@@ -93,4 +95,15 @@ public interface ResourceAdminService {
             String idempotencyKey,
             String requestId,
             ReplaceWindowItemsRequest request);
+
+    WindowItemsResponse getWindowItems(long id);
+
+    WindowStaffResponse getWindowStaff(long id);
+
+    WindowStaffResponse replaceWindowStaff(
+            long actorId,
+            long id,
+            String idempotencyKey,
+            String requestId,
+            ReplaceWindowStaffRequest request);
 }

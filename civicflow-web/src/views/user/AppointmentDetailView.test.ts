@@ -5,7 +5,9 @@ import AppointmentDetailView from './AppointmentDetailView.vue'
 const appointment = vi.fn()
 const confirm = vi.fn()
 const queue = vi.fn()
-vi.mock('@/api/user', () => ({ userApi: { appointment: (...args: unknown[]) => appointment(...args), confirm: (...args: unknown[]) => confirm(...args), queue: (...args: unknown[]) => queue(...args) } }))
+const checkInToken = vi.fn(), checkIn = vi.fn()
+vi.mock('qrcode', () => ({ default: { toDataURL: vi.fn(async () => 'data:image/png;base64,dGVzdA==') } }))
+vi.mock('@/api/user', () => ({ userApi: { appointment: (...args: unknown[]) => appointment(...args), confirm: (...args: unknown[]) => confirm(...args), queue: (...args: unknown[]) => queue(...args), checkInToken: (...args: unknown[]) => checkInToken(...args), checkIn: (...args: unknown[]) => checkIn(...args) } }))
 vi.mock('vue-router', () => ({ useRoute: () => ({ params: { appointmentId: '42' } }), RouterLink: { template: '<a><slot /></a>' } }))
 vi.mock('element-plus', () => ({ ElMessage: { success: vi.fn() } }))
 
@@ -17,7 +19,22 @@ const pending = {
 const stubs = { RouterLink: true, StatePanel: true, ElTag: { template: '<span><slot /></span>' }, ElButton: { template: '<button @click="$emit(\'click\')"><slot /></button>' } }
 
 describe('AppointmentDetailView', () => {
-  afterEach(() => { appointment.mockReset(); confirm.mockReset(); queue.mockReset(); vi.useRealTimers() })
+  afterEach(() => { appointment.mockReset(); confirm.mockReset(); queue.mockReset(); checkInToken.mockReset(); checkIn.mockReset(); vi.useRealTimers() })
+  it('signs in from the page and removes the QR credential after success', async () => {
+    vi.useFakeTimers()
+    appointment.mockResolvedValue({ ...pending, status: 'CONFIRMED' })
+    checkInToken.mockResolvedValue({ token: 'QR_PRIVATE_CANARY', expiresAt: new Date(Date.now() + 120000).toISOString() })
+    checkIn.mockImplementation(async () => { appointment.mockResolvedValue({ ...pending, status: 'CHECKED_IN' }); return { ticketNo: 'A001' } })
+    queue.mockResolvedValue([])
+    const wrapper = mount(AppointmentDetailView, { global: { stubs } }); await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === '获取二维码')!.trigger('click'); await flushPromises()
+    expect(wrapper.text()).not.toContain('QR_PRIVATE_CANARY')
+    await wrapper.findAll('button').find(button => button.text() === '现场签到')!.trigger('click'); await flushPromises()
+    expect(checkIn).toHaveBeenCalledWith('3', 'QR_PRIVATE_CANARY')
+    expect(wrapper.text()).toContain('签到成功，排队号 A001')
+    expect(wrapper.find('img').exists()).toBe(false)
+    wrapper.unmount()
+  })
   it('observes external check-in and waits for delayed appointment completion', async () => {
     vi.useFakeTimers()
     appointment.mockResolvedValue({ ...pending, status: 'CONFIRMED' })

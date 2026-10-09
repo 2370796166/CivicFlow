@@ -3,19 +3,20 @@ import { pinia } from '@/stores/pinia'
 import { useAuthStore } from '@/stores/auth'
 import type { Role } from '@/types/api'
 import AppLayout from '@/components/AppLayout.vue'
-import LoginView from '@/views/LoginView.vue'
-import ForbiddenView from '@/views/ForbiddenView.vue'
-import NotFoundView from '@/views/NotFoundView.vue'
-import ExploreView from '@/views/user/ExploreView.vue'
-import AppointmentsView from '@/views/user/AppointmentsView.vue'
-import AppointmentDetailView from '@/views/user/AppointmentDetailView.vue'
-import ReservationView from '@/views/user/ReservationView.vue'
-import WorkbenchView from '@/views/staff/WorkbenchView.vue'
-import ResourcesView from '@/views/admin/ResourcesView.vue'
-import SlotsView from '@/views/admin/SlotsView.vue'
-import UsersView from '@/views/admin/UsersView.vue'
-import ReconciliationView from '@/views/admin/ReconciliationView.vue'
-import UnavailableAdminView from '@/views/admin/UnavailableAdminView.vue'
+const LoginView = () => import('@/views/LoginView.vue')
+const ForbiddenView = () => import('@/views/ForbiddenView.vue')
+const NotFoundView = () => import('@/views/NotFoundView.vue')
+const ExploreView = () => import('@/views/user/ExploreView.vue')
+const AppointmentsView = () => import('@/views/user/AppointmentsView.vue')
+const AppointmentDetailView = () => import('@/views/user/AppointmentDetailView.vue')
+const ReservationView = () => import('@/views/user/ReservationView.vue')
+const WorkbenchView = () => import('@/views/staff/WorkbenchView.vue')
+const ResourcesView = () => import('@/views/admin/ResourcesView.vue')
+const SlotsView = () => import('@/views/admin/SlotsView.vue')
+const UsersView = () => import('@/views/admin/UsersView.vue')
+const ReconciliationView = () => import('@/views/admin/ReconciliationView.vue')
+const AppointmentQueryView = () => import('@/views/admin/AppointmentQueryView.vue')
+const OperationLogsView = () => import('@/views/admin/OperationLogsView.vue')
 
 export const portals: { role: Role; path: string; title: string; subtitle: string }[] = [
   { role: 'USER', path: '/user', title: '我的服务', subtitle: '查找网点、查看预约与排队进度' },
@@ -44,8 +45,8 @@ const routes: RouteRecordRaw[] = [
     { path: 'slots', name: 'admin-slots', component: SlotsView },
     { path: 'users', name: 'admin-users', component: UsersView },
     { path: 'reconciliations', name: 'admin-reconciliations', component: ReconciliationView },
-    { path: 'appointments', name: 'admin-appointments', component: UnavailableAdminView, props: { title: '预约查询', description: 'API.md 声明了管理员预约查询，但当前 appointment 服务没有对应 Controller；不能展示不完整或越权数据。' } },
-    { path: 'operation-logs', name: 'admin-operation-logs', component: UnavailableAdminView, props: { title: '操作日志', description: '当前各服务没有对外分页操作日志查询接口；日志只能在受控后端存储中审计。' } },
+    { path: 'appointments', name: 'admin-appointments', component: AppointmentQueryView },
+    { path: 'operation-logs', name: 'admin-operation-logs', component: OperationLogsView },
   ] },
   { path: '/403', name: 'forbidden', component: ForbiddenView },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView, meta: { public: true } },

@@ -10,12 +10,20 @@ import com.civicflow.resource.dto.response.ItemSummaryResponse;
 import com.civicflow.resource.dto.response.OutletResponse;
 import com.civicflow.resource.dto.response.StaffScopeResponse;
 import com.civicflow.resource.dto.response.StaffScopeRow;
+import com.civicflow.resource.dto.response.UserSlotResponse;
+import com.civicflow.resource.entity.ResourceSlotEntity;
 import com.civicflow.resource.entity.ServiceOutletEntity;
 import com.civicflow.resource.enums.ResourceStatus;
+import com.civicflow.resource.enums.SlotStatus;
+import com.civicflow.resource.mapper.ResourceSlotMapper;
 import com.civicflow.resource.mapper.ServiceItemMapper;
 import com.civicflow.resource.mapper.ServiceOutletMapper;
 import com.civicflow.resource.mapper.StaffWindowScopeMapper;
 import com.civicflow.resource.service.ResourceQueryService;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -26,20 +34,79 @@ import org.springframework.util.StringUtils;
 
 @Service
 public class ResourceQueryServiceImpl implements ResourceQueryService {
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
     private final ServiceOutletMapper outletMapper;
     private final ServiceItemMapper itemMapper;
     private final StaffWindowScopeMapper scopeMapper;
     private final ContactPhoneProtector contactPhoneProtector;
+    private final ResourceSlotMapper slotMapper;
+    private final Clock clock;
 
     public ResourceQueryServiceImpl(
             ServiceOutletMapper outletMapper,
             ServiceItemMapper itemMapper,
             StaffWindowScopeMapper scopeMapper,
-            ContactPhoneProtector contactPhoneProtector) {
+            ContactPhoneProtector contactPhoneProtector,
+            ResourceSlotMapper slotMapper,
+            Clock clock) {
         this.outletMapper = outletMapper;
         this.itemMapper = itemMapper;
         this.scopeMapper = scopeMapper;
         this.contactPhoneProtector = contactPhoneProtector;
+        this.slotMapper = slotMapper;
+        this.clock = clock;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<UserSlotResponse> listAvailableSlots(
+            long outletId, long itemId, LocalDate serviceDate, int page, int size) {
+        LocalDate today = LocalDate.now(clock.withZone(BUSINESS_ZONE));
+        if (outletId <= 0
+                || itemId <= 0
+                || serviceDate == null
+                || page < 1
+                || size < 1
+                || size > 100
+                || serviceDate.isBefore(today)
+                || serviceDate.isAfter(today.plusDays(365))) {
+            throw new BusinessException(CommonErrorCode.VALIDATION);
+        }
+        getAvailableOutlet(outletId);
+        if (slotMapper.countEnabledOffering(outletId, itemId) == 0) {
+            throw new BusinessException(CommonErrorCode.NOT_FOUND);
+        }
+        Instant now = clock.instant();
+        long total = slotMapper.countUserPage(outletId, itemId, serviceDate);
+        List<UserSlotResponse> items =
+                slotMapper
+                        .selectUserPage(
+                                outletId, itemId, serviceDate, (long) (page - 1) * size, size)
+                        .stream()
+                        .map(slot -> publicSlot(slot, now))
+                        .toList();
+        return PageResponse.of(items, page, size, total);
+    }
+
+    private static UserSlotResponse publicSlot(ResourceSlotEntity slot, Instant now) {
+        Instant closeAt =
+                slot.getServiceDate().atTime(slot.getEndTime()).atZone(BUSINESS_ZONE).toInstant();
+        String status;
+        if (slot.getStatus() == SlotStatus.CLOSED || !now.isBefore(closeAt)) status = "CLOSED";
+        else if (slot.getStatus() == SlotStatus.SUSPENDED) status = "SUSPENDED";
+        else if (now.isBefore(slot.getReleaseAt())) status = "UPCOMING";
+        else status = "BOOKABLE";
+        return new UserSlotResponse(
+                slot.getId().toString(),
+                slot.getOutletId().toString(),
+                slot.getItemId().toString(),
+                slot.getServiceDate(),
+                slot.getStartTime(),
+                slot.getEndTime(),
+                slot.getTotalQuota(),
+                slot.getReleaseAt(),
+                closeAt,
+                status);
     }
 
     @Override

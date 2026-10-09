@@ -6,6 +6,7 @@ import StatePanel from '@/components/StatePanel.vue'
 import type { ApiError } from '@/types/api'
 import type { CurrentWorkSession, StaffAction, StaffScope } from '@/types/staff'
 import { actionLabel, actionSignature, availableActions, confirmText } from '@/utils/staffFlow'
+import { bookingErrorMessage } from '@/utils/bookingError'
 
 const scopes = ref<StaffScope[]>([])
 const outletId = ref('')
@@ -18,6 +19,7 @@ const currentError = ref(false)
 const uncertain = ref(false)
 const busy = ref<StaffAction | null>(null)
 const notice = ref('')
+const scanToken = ref(''), scanBusy = ref(false), scanNotice = ref('')
 const keys = new Map<StaffAction, { signature: string; key: string }>()
 let timer: ReturnType<typeof setTimeout> | undefined
 let active = true
@@ -28,7 +30,7 @@ const windows = computed(() => scopes.value.filter((scope) => scope.outletId ===
 const selected = computed(() => windows.value.find((scope) => scope.windowId === windowId.value) ?? null)
 const actions = computed(() => availableActions(current.value))
 const ticket = computed(() => current.value?.currentTicket ?? null)
-const controlsLocked = computed(() => !!busy.value || uncertain.value || currentError.value || refreshing.value)
+const controlsLocked = computed(() => !!busy.value || scanBusy.value || uncertain.value || currentError.value || refreshing.value)
 const configured = Number(import.meta.env.VITE_STAFF_POLL_MS)
 const pollMs = Number.isFinite(configured) && configured >= 3000 && configured <= 10000 ? configured : 4000
 
@@ -70,7 +72,21 @@ async function refreshCurrent(force = false): Promise<boolean> {
     schedule()
   }
 }
+async function checkIn() {
+  if (!outletId.value || !scanToken.value.trim() || scanBusy.value || busy.value) return
+  const token = scanToken.value.trim()
+  if (token.length > 4096) { scanNotice.value = '二维码内容过长，请重新扫描。'; return }
+  scanBusy.value = true; scanNotice.value = ''
+  try {
+    const result = await staffApi.checkIn(outletId.value, token)
+    if (!active) return
+    scanNotice.value = `签到成功，排队号 ${result.ticketNo}。`
+    await refreshCurrent(true)
+  } catch (error) { if (active) scanNotice.value = bookingErrorMessage((error as ApiError).code, '签到结果暂不确定，请重新扫描核实。') }
+  finally { scanToken.value = ''; scanBusy.value = false }
+}
 function selectOutlet() {
+  scanToken.value = ''; scanNotice.value = ''
   windowId.value = windows.value[0]?.windowId ?? ''
   selectWindow()
 }
@@ -137,36 +153,164 @@ onUnmounted(() => { active = false; generation += 1; clearTimeout(timer); docume
 
 <template>
   <div class="staff-workbench">
-    <div class="page-heading"><span class="eyebrow">窗口人员 / 今日工作</span><h1>窗口工作台</h1><p>先选择授权窗口，再按现场顺序叫号与办理。</p></div>
-    <StatePanel v-if="scopesLoading" state="loading" />
-    <StatePanel v-else-if="scopesError" state="error" title="授权窗口读取失败" @retry="loadScopes" />
-    <StatePanel v-else-if="!scopes.length" state="empty" title="暂无授权窗口" description="请联系管理员配置网点和窗口授权。" />
+    <div class="page-heading">
+      <span class="eyebrow">窗口人员 / 今日工作</span><h1>窗口工作台</h1><p>先选择授权窗口，再按现场顺序叫号与办理。</p>
+    </div>
+    <StatePanel
+      v-if="scopesLoading"
+      state="loading"
+    />
+    <StatePanel
+      v-else-if="scopesError"
+      state="error"
+      title="授权窗口读取失败"
+      @retry="loadScopes"
+    />
+    <StatePanel
+      v-else-if="!scopes.length"
+      state="empty"
+      title="暂无授权窗口"
+      description="请联系管理员配置网点和窗口授权。"
+    />
     <template v-else>
-      <section class="staff-selector" aria-label="选择工作窗口">
-        <div><label for="staff-outlet">授权网点</label><select id="staff-outlet" v-model="outletId" :disabled="!!current || !!busy" @change="selectOutlet"><option v-for="outlet in outlets" :key="outlet.id" :value="outlet.id">{{ outlet.name }}</option></select></div>
-        <div><label for="staff-window">工作窗口</label><select id="staff-window" v-model="windowId" :disabled="!!current || !!busy" @change="selectWindow"><option v-for="scope in windows" :key="scope.windowId" :value="scope.windowId">{{ scope.windowName }}</option></select></div>
-        <div class="staff-selector-note"><span>可办事项</span><strong>{{ selected?.items.map((item) => item.name).join('、') || '无' }}</strong></div>
+      <section
+        class="staff-selector"
+        aria-label="选择工作窗口"
+      >
+        <div>
+          <label for="staff-outlet">授权网点</label><select
+            id="staff-outlet"
+            v-model="outletId"
+            :disabled="!!current || !!busy || scanBusy"
+            @change="selectOutlet"
+          >
+            <option
+              v-for="outlet in outlets"
+              :key="outlet.id"
+              :value="outlet.id"
+            >
+              {{ outlet.name }}
+            </option>
+          </select>
+        </div>
+        <div>
+          <label for="staff-window">工作窗口</label><select
+            id="staff-window"
+            v-model="windowId"
+            :disabled="!!current || !!busy || scanBusy"
+            @change="selectWindow"
+          >
+            <option
+              v-for="scope in windows"
+              :key="scope.windowId"
+              :value="scope.windowId"
+            >
+              {{ scope.windowName }}
+            </option>
+          </select>
+        </div>
+        <div class="staff-selector-note">
+          <span>可办事项</span><strong>{{ selected?.items.map((item) => item.name).join('、') || '无' }}</strong>
+        </div>
       </section>
 
-      <div v-if="notice" class="staff-notice" role="status">{{ notice }}</div>
-      <div v-if="currentError" class="staff-error" role="alert">最新状态读取失败。操作已暂时锁定。<button type="button" @click="refreshCurrent(true)">刷新状态</button></div>
-      <section class="staff-stage" aria-label="当前工作状态">
-        <div class="staff-stage-head"><span>{{ selected?.windowName }}</span><strong :class="current ? 'session-active' : 'session-idle'">{{ current ? '工作中' : '未开工' }}</strong></div>
-        <div v-if="ticket" class="staff-ticket"><span class="staff-ticket-label">{{ ticket.status === 'SERVING' ? '正在办理' : '当前已叫号' }}</span><strong>{{ ticket.ticketNo }}</strong><span>已呼叫 {{ ticket.callCount }} 次</span></div>
-        <div v-else class="staff-ticket staff-ticket-empty"><span class="staff-ticket-label">当前办理票</span><strong>—</strong><span>{{ current ? '窗口空闲，可叫下一号' : '开始工作后可叫号' }}</span></div>
+      <form
+        class="staff-checkin admin-form"
+        @submit.prevent="checkIn"
+      >
+        <label for="check-in-code">现场签到<input
+          id="check-in-code"
+          v-model="scanToken"
+          type="password"
+          autocomplete="off"
+          maxlength="4096"
+          placeholder="使用扫码枪输入或粘贴签到二维码内容"
+          :disabled="scanBusy || !!busy"
+        ></label>
+        <el-button
+          native-type="submit"
+          type="primary"
+          :loading="scanBusy"
+          :disabled="!scanToken.trim() || !!busy"
+        >
+          确认签到
+        </el-button>
+        <p
+          v-if="scanNotice"
+          role="status"
+        >
+          {{ scanNotice }}
+        </p>
+      </form>
+
+      <div
+        v-if="notice"
+        class="staff-notice"
+        role="status"
+      >
+        {{ notice }}
+      </div>
+      <div
+        v-if="currentError"
+        class="staff-error"
+        role="alert"
+      >
+        最新状态读取失败。操作已暂时锁定。<button
+          type="button"
+          @click="refreshCurrent(true)"
+        >
+          刷新状态
+        </button>
+      </div>
+      <section
+        class="staff-stage"
+        aria-label="当前工作状态"
+      >
+        <div class="staff-stage-head">
+          <span>{{ selected?.windowName }}</span><strong :class="current ? 'session-active' : 'session-idle'">{{ current ? '工作中' : '未开工' }}</strong>
+        </div>
+        <div
+          v-if="ticket"
+          class="staff-ticket"
+        >
+          <span class="staff-ticket-label">{{ ticket.status === 'SERVING' ? '正在办理' : '当前已叫号' }}</span><strong>{{ ticket.ticketNo }}</strong><span>已呼叫 {{ ticket.callCount }} 次</span>
+        </div>
+        <div
+          v-else
+          class="staff-ticket staff-ticket-empty"
+        >
+          <span class="staff-ticket-label">当前办理票</span><strong>—</strong><span>{{ current ? '窗口空闲，可叫下一号' : '开始工作后可叫号' }}</span>
+        </div>
       </section>
 
-      <section class="staff-controls" aria-label="窗口操作">
-        <button v-for="action in actions" :key="action" type="button" class="staff-action" :class="`staff-action-${action}`" :disabled="controlsLocked" @click="perform(action)">{{ busy === action ? '提交中…' : actionLabel[action] }}</button>
-        <button type="button" class="staff-refresh" :disabled="!!busy || refreshing" @click="refreshCurrent(true)">刷新状态</button>
+      <section
+        class="staff-controls"
+        aria-label="窗口操作"
+      >
+        <button
+          v-for="action in actions"
+          :key="action"
+          type="button"
+          class="staff-action"
+          :class="`staff-action-${action}`"
+          :disabled="controlsLocked"
+          @click="perform(action)"
+        >
+          {{ busy === action ? '提交中…' : actionLabel[action] }}
+        </button>
+        <button
+          type="button"
+          class="staff-refresh"
+          :disabled="!!busy || refreshing"
+          @click="refreshCurrent(true)"
+        >
+          刷新状态
+        </button>
       </section>
 
-      <section class="staff-snapshot" aria-label="队列概览">
-        <div><span>等待人数</span><strong>—</strong><small>窗口接口暂未提供</small></div>
-        <div><span>已叫号列表</span><strong>—</strong><small>仅可查看当前票</small></div>
-        <div><span>过号列表</span><strong>—</strong><small>窗口接口暂未提供</small></div>
-      </section>
-      <p class="staff-contract-note">当前服务仅支持结束工作，没有暂停/恢复接口。结束前须先处理当前已叫号或办理中的票。状态约每 {{ pollMs / 1000 }} 秒刷新一次；页面隐藏时降低频率。</p>
+      <p class="staff-contract-note">
+        工作台显示当前办理票。结束工作前，请先处理当前已叫号或正在办理的票。状态约每 {{ pollMs / 1000 }} 秒更新。
+      </p>
     </template>
   </div>
 </template>

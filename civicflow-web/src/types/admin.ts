@@ -1,4 +1,7 @@
 import type { Role } from './api'
+import type { Appointment } from './user'
+export interface AdminAppointment { userId: string; appointment: Appointment }
+export interface AppointmentLog { id: string; appointmentId: string; reservationId: string; actorType: string; actorId: string | null; operation: string; fromStatus: string | null; toStatus: string | null; requestId: string; occurredAt: string }
 export type ResourceKind = 'outlets' | 'items' | 'windows'
 export type ResourceStatus = 'ENABLED' | 'DISABLED'
 export type SlotStatus = 'DRAFT' | 'SCHEDULED' | 'OPEN' | 'SUSPENDED' | 'CLOSED'
@@ -6,6 +9,7 @@ export interface ResourceBase { id: string; code: string; name: string; status: 
 export interface AdminOutlet extends ResourceBase { address: string; longitude: number | null; latitude: number | null; maskedContactPhone: string | null }
 export interface AdminItem extends ResourceBase { description: string | null; defaultDurationMinutes: number }
 export interface AdminWindow extends ResourceBase { outletId: string }
+export interface WindowStaff { windowId: string; version: number; staffUserIds: string[]; inheritedStaffUserIds: string[] }
 export type AdminResource = AdminOutlet | AdminItem | AdminWindow
 export interface AdminSlot { id: string; outletId: string; itemId: string; serviceDate: string; startTime: string; endTime: string; totalQuota: number; releaseAt: string; checkInStart: string; checkInEnd: string; status: SlotStatus; configVersion: number; consumedHint: number | null; version: number }
 export interface SlotBatchResult { created: number; skipped: number; failed: { serviceDate: string; code: string; message: string }[] }
