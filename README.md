@@ -148,6 +148,20 @@ docker compose up -d --wait --wait-timeout 600
 
 若提示不支持 `include`，请更新 Docker Desktop，项目需要 Compose 2.20.3 或更新版本。已有账号不会因修改 `.env` 中的密码而重置。
 
+<details>
+<summary>已经开了网络代理，后端依赖还是下载失败</summary>
+
+Docker 中的 Maven 需要单独指定代理。下面以本机 HTTP 代理端口 `7897` 为例，先确认代理已启动，将端口换成你实际使用的端口，再执行：
+
+```powershell
+docker compose build --build-arg MAVEN_PROXY_HOST=host.docker.internal --build-arg MAVEN_PROXY_PORT=7897
+docker compose up -d --wait --wait-timeout 300
+```
+
+`host.docker.internal` 表示运行 Docker 的电脑。这两个参数只用于构建时下载 Java 依赖；不使用代理时，仍按前面的普通启动命令操作。
+
+</details>
+
 ## 5. 其他使用方式（可选）
 
 <details>
