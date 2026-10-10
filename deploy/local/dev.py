@@ -24,7 +24,7 @@ import requests
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 LOCAL = ROOT / '.local' / 'dev'
 ENV_FILE = ROOT / 'deploy/compose/.env'
 SERVICES = {'auth': 8081, 'resource': 8082, 'appointment': 8083, 'queue': 8084, 'gateway': 8080}

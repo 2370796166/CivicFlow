@@ -247,9 +247,7 @@ class ReleaseHardeningIntegrationTest {
                         .withCopyFileToContainer(
                                 MountableFile.forHostPath(fixture), "/tmp/fixture.json")
                         .withCopyFileToContainer(
-                                MountableFile.forHostPath(
-                                        Path.of("..", "scripts", "release_load.js")
-                                                .toAbsolutePath()),
+                                MountableFile.forClasspathResource("load/reservation.js"),
                                 "/tmp/load.js")) {
             k6.start();
             var result =

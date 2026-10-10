@@ -12,6 +12,7 @@ import time
 import pymysql
 from pymysql.constants import CLIENT
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'local'))
 import dev
 
 STATE = Path('/state')

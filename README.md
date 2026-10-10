@@ -316,7 +316,7 @@ docker compose stop
 
 ```powershell
 # 查看启动状态
-powershell.exe -NoProfile -File scripts/dev.ps1 status
+powershell.exe -NoProfile -File deploy/local/dev.ps1 status
 
 # 停止本机启动器管理的服务
 .\stop-local.cmd
@@ -336,7 +336,7 @@ docker inspect civicflow-mysql --format '{{ index .Config.Labels "com.docker.com
 
 如果输出 `civicflow-local`，先执行 `$env:COMPOSE_PROJECT_NAME = 'civicflow-local'`，再在同一个 PowerShell 窗口执行第一章的 Docker 启动命令；其他名称按实际输出替换。以后也在这个项目名下执行启动和停止命令，避免创建第二套同名容器。
 
-日志在 `.local/dev/`：`launcher.log` 是启动总日志，`build.log` 是后端构建日志，`npm.log` 是前端依赖安装日志，`auth.log` 等是对应服务的日志。PowerShell 如拦截脚本执行，可先运行 `Unblock-File scripts/dev.ps1`；单位电脑的管理策略限制需由管理员处理。
+日志在 `.local/dev/`：`launcher.log` 是启动总日志，`build.log` 是后端构建日志，`npm.log` 是前端依赖安装日志，`auth.log` 等是对应服务的日志。PowerShell 如拦截脚本执行，可先运行 `Unblock-File deploy/local/dev.ps1`；单位电脑的管理策略限制需由管理员处理。
 
 ### 3. 使用 IDEA 调试单个服务
 
@@ -345,7 +345,7 @@ docker inspect civicflow-mysql --format '{{ index .Config.Labels "com.docker.com
 3. 在 IDEA 运行配置中选择 **`CivicFlow - Prepare IDEA`**，或者先在 PowerShell 执行：
 
 ```powershell
-powershell.exe -NoProfile -File scripts/dev.ps1 prepare
+powershell.exe -NoProfile -File deploy/local/dev.ps1 prepare
 ```
 
 4. 依次运行或调试 **`Local Auth` → `Local Resource` → `Local Appointment` → `Local Queue` → `Local Gateway`**，等前一个服务就绪再启动下一个。
@@ -422,34 +422,7 @@ npm.cmd --prefix civicflow-web run test
 npm.cmd --prefix civicflow-web run build
 ```
 
-### 可选：自动测试完整演示流程
-
-先用 Docker 方式启动整个项目，再安装测试客户端。下面的 Python 安装命令使用仓库的固定版本依赖，建议在独立测试环境中执行：
-
-```powershell
-python -m venv .local/e2e-venv
-.\.local\e2e-venv\Scripts\python.exe -m pip install -r scripts/requirements-e2e.txt
-npm.cmd --prefix civicflow-web ci
-```
-
-进入前端目录安装测试浏览器，再返回项目根目录：
-
-```powershell
-cd civicflow-web
-npx.cmd playwright install chromium
-cd ..
-```
-
-运行检查：
-
-```powershell
-.\.local\e2e-venv\Scripts\python.exe scripts/smoke_docker.py
-.\.local\e2e-venv\Scripts\python.exe -u scripts/e2e_docker.py
-```
-
-自动测试会创建独立的演示账号和业务数据，检查预约、确认、签到、办理，并等待真实的五分钟确认超时。整个流程约需 8 分钟，测试数据会保留，结果写入 `target/e2e/`，不会提交到 GitHub。
-
-`scripts/e2e_v1.py` 是另一套会自行启动隔离环境的测试，应在其他运行模式停止后执行；默认端口被占用时可设置 `CIVICFLOW_E2E_PORT_OFFSET`。`live_load.py`、`load_gateway.js` 和 `release_load.js` 是测试/压测脚本，不参与业务运行，但被相关测试引用。
+本机额外的端到端测试与压测工具不随仓库发布。仓库保留后端和前端常规测试；后端并发测试所需的 k6 夹具位于 `civicflow-appointment/src/test/resources/load/`，运行 Maven 测试时会自动读取。
 
 ### 项目目录怎么看
 
@@ -463,8 +436,8 @@ cd ..
 | `civicflow-queue/` | 签到、排队、窗口办理 |
 | `civicflow-common/` | 各后端服务共用的响应与异常等代码 |
 | `deploy/`、`compose.yaml` | Docker 构建和运行配置 |
-| `scripts/dev.ps1`、`scripts/dev.py`、`scripts/java/LocalLauncher.java` | 本机启动器；`dev.py` 也被 Docker 初始化容器使用 |
-| `scripts/requirements-e2e.txt` | 当前启动器、Docker 初始化和测试共用的 Python 依赖 |
+| `deploy/local/` | 项目必需的本机启动代码；`dev.py` 也被 Docker 初始化容器使用 |
+| `deploy/local/requirements.txt` | 本机启动器和 Docker 初始化使用的 Python 依赖 |
 | `.local/` | 本机生成的配置、密钥、登录信息和日志，不提交 Git |
 
 预约流程使用 Redis 原子预占、异步建单、幂等处理、数据库约束、状态版本校验、超时释放和库存对账。项目已验证本机启动、重启和端到端演示；全新机器的首次下载仍依赖网络环境，个人演示部署不代表已完成生产部署验证。

@@ -3,7 +3,7 @@ param(
     [switch]$SkipBuild
 )
 $ErrorActionPreference = 'Stop'
-$projectRoot = Split-Path $PSScriptRoot -Parent
+$projectRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 Set-Location -LiteralPath $projectRoot
 $launcherJar = Join-Path $projectRoot '.local\bootstrap\civicflow-local-launcher.jar'
 $launcherSource = Join-Path $PSScriptRoot 'java\LocalLauncher.java'
@@ -18,12 +18,12 @@ if (-not (Test-Path -LiteralPath $launcherJar)) {
 $pythonExe = Join-Path $projectRoot '.local\venv\Scripts\python.exe'
 if (-not (Test-Path -LiteralPath $pythonExe)) {
     if ($Action -in @('stop', 'status')) { Write-Host 'Local launcher has not been initialized.'; exit 0 }
-    # Reuse already-installed pinned E2E dependencies; pip still checks exact versions below.
+    # Reuse installed launcher dependencies; pip still checks exact versions below.
     & python -m venv --system-site-packages (Join-Path $projectRoot '.local\venv')
     if ($LASTEXITCODE -ne 0) { throw 'Python 3.10+ is required.' }
 }
 $dependencyStamp = Join-Path $projectRoot '.local\venv\requirements.sha256'
-$requirements = Join-Path $PSScriptRoot 'requirements-e2e.txt'
+$requirements = Join-Path $PSScriptRoot 'requirements.txt'
 $hasher = [Security.Cryptography.SHA256]::Create()
 try {
     $expectedHash = [BitConverter]::ToString($hasher.ComputeHash([IO.File]::ReadAllBytes($requirements))).Replace('-', '')
