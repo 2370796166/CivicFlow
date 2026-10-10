@@ -206,6 +206,10 @@ onMounted(() => { void load() })
       stripe
     >
       <el-table-column
+        prop="id"
+        label="ID"
+        min-width="190"
+      /><el-table-column
         prop="code"
         label="编码"
         min-width="130"
