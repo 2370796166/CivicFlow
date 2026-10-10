@@ -3,6 +3,7 @@ import { onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminApi } from '@/api/admin'
 import StatePanel from '@/components/StatePanel.vue'
+import AdminResourceSelect from '@/components/AdminResourceSelect.vue'
 import WindowStaffDialog from '@/components/WindowStaffDialog.vue'
 import type { AdminItem, AdminResource, AdminWindow, ResourceKind, ResourceStatus } from '@/types/admin'
 import { adminErrorMessage } from '@/utils/adminError'
@@ -69,7 +70,7 @@ function validate(): string {
     if (form.contactPhone && (form.contactPhone.length < 6 || form.contactPhone.length > 32)) return '联系电话需为 6–32 位。'
   }
   if (props.kind === 'items' && (!Number.isInteger(form.defaultDurationMinutes) || form.defaultDurationMinutes < 1 || form.defaultDurationMinutes > 1440)) return '预计办理时长需为 1–1440 分钟。'
-  if (props.kind === 'windows' && !/^[1-9][0-9]*$/.test(form.outletId)) return '请输入有效的网点 ID。'
+  if (props.kind === 'windows' && !/^[1-9][0-9]*$/.test(form.outletId)) return '请选择所属网点。'
   return ''
 }
 async function save() {
@@ -172,11 +173,13 @@ onMounted(() => { void load() })
           label="停用"
           value="DISABLED"
         />
-      </el-select><el-input
+      </el-select><AdminResourceSelect
         v-if="kind === 'windows'"
         v-model="outletId"
-        placeholder="网点 ID"
-        @keyup.enter="search"
+        kind="outlets"
+        placeholder="全部网点，可搜索名称或编码"
+        :enabled-only="false"
+        class="window-outlet-filter"
       /><el-button @click="search">
         查询
       </el-button><el-button
@@ -340,11 +343,15 @@ onMounted(() => { void load() })
           max="1440"
           required
         ></label>
-      </template><label v-else>网点 ID<input
+      </template><label
+        v-else
+        for="window-outlet"
+      >所属网点<AdminResourceSelect
         v-model="form.outletId"
-        inputmode="numeric"
-        required
-      ></label><p
+        kind="outlets"
+        input-id="window-outlet"
+        :disabled="busy"
+      /></label><p
         v-if="formError"
         class="admin-error"
         role="alert"
@@ -414,3 +421,8 @@ onMounted(() => { void load() })
     @updated="load"
   />
 </template>
+
+<style scoped>
+.window-outlet-filter { width: 210px; }
+@media (max-width: 760px) { .window-outlet-filter { width: 100%; } }
+</style>
