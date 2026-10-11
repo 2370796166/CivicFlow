@@ -344,6 +344,16 @@ def seed_admin(keys, *, query=None, directory=None):
                                    keys['adminPassword'] + '\n', encoding='utf-8')
 
 
+def seed_idea_admin(keys):
+    # IDEA owns the Java processes; wait until Auth has completed its migrations.
+    if STATE.get('phase') != 'prepared' or STATE.get('adminReady') or not healthy(SERVICES['auth']):
+        return False
+    seed_admin(keys)
+    STATE['adminReady'] = True
+    emit('IDEA Auth ready; local administrator available. Existing accounts retained.')
+    return True
+
+
 def read_state():
     try:
         return json.loads((LOCAL / 'state.json').read_text())
@@ -414,6 +424,7 @@ def supervise(mode):
                 if STATE['phase'] == 'prepared' and (LOCAL / 'start.request').exists():
                     (LOCAL / 'start.request').unlink()
                     start_apps(keys)
+                seed_idea_admin(keys)
                 for name, proc, _ in CHILDREN:
                     if proc.poll() is not None:
                         raise RuntimeError(name + ' stopped unexpectedly; check its local log')

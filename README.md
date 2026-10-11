@@ -6,6 +6,8 @@
 
 操作顺序：**安装 Docker → 下载并解压 → 生成配置 → 启动 → 打开网页登录**。只想先看看项目，完成第 1 节即可；想体验预约和叫号，再看第 2 节。
 
+**想第一次就用 IDEA 启动、调试后端？** 下载解压后，直接看第 5 节的“从零开始，用 IDEA 启动”，不必先启动整套 Docker 应用。
+
 ## 1. 启动项目
 
 ### ① 安装 Docker
@@ -234,29 +236,131 @@ docker compose up -d --wait --wait-timeout 300
 ## 5. 其他使用方式（可选）
 
 <details>
-<summary>我要修改代码，用 IDEA 调试</summary>
+<summary>从零开始，用 IDEA 启动（包含 MySQL、Redis 等容器）</summary>
 
-准备 Docker Desktop、JDK 17、Maven 3.9+、Node.js 24 或 22.12+、Python 3.10+，并确保这些工具的命令可以执行。
+这种方式分三部分：**Docker 运行数据库等基础服务，IDEA 运行后端，PowerShell 运行前端**。第一次使用也可以直接按下面的步骤操作。
 
-1. 如果已经用了 Docker 启动，先执行 `docker compose stop`。
-2. 双击 `start-local.cmd`，等待出现 `Ready. Web: http://localhost:5173`。账号仍在 `.local/dev/login.txt`。
-3. 停止本机应用用 `stop-local.cmd`；它会保留数据库等容器，IDEA 单独启动的服务需在 IDEA 中停止。
-4. 要调试单个服务，先成功执行一次本机启动，再停止它；在 IDEA 运行 `CivicFlow - Prepare IDEA`，依次调试 `Local Auth`、`Local Resource`、`Local Appointment`、`Local Queue`、`Local Gateway`。
-5. 前端另开 PowerShell，在项目文件夹执行：
+### ① 准备工具，打开项目
+
+安装 Docker Desktop、**JDK 17**、Maven 3.9+、Node.js 24 或 22.12+、Python 3.10+，再安装 IntelliJ IDEA。打开 Docker Desktop，等待 Linux 容器引擎启动。
+
+按照第 1 节第 ② 步下载、解压项目，并在 PowerShell 中进入项目文件夹。执行下面的命令，确认每个工具都能显示版本；找不到哪个命令，就先安装对应工具并重新打开 PowerShell：
 
 ```powershell
+javac -version
+mvn.cmd -version
+node -v
+npm.cmd -v
+python --version
+docker version
+```
+
+在 IDEA 的欢迎页点击 **Open（打开）**，选择项目根目录的 `pom.xml`，按提示作为项目打开。将 **File → Project Structure → Project SDK** 设置为 JDK 17，等待右下角的 Maven 导入完成。
+
+如果之前已经启动了整套 Docker 应用，先在项目目录执行 `docker compose stop`，腾出后端和前端端口。**第一次启动的用户跳过这句。**
+
+### ② 启动 MySQL、Redis 等基础容器
+
+在项目根目录的 PowerShell 执行下面这一行：
+
+```powershell
+powershell -NoProfile -File deploy/local/dev.ps1 prepare
+```
+
+**这一步会自动启动下面四个容器**，还会生成 `.env`、开发密钥、IDEA 配置和本地启动器。没有 `.env` 也能执行，不需要先走 Docker 全量启动步骤，不用手动建数据库或复制数据库密码。
+
+| 容器名 | 用途 | 默认本机端口 |
+| --- | --- | --- |
+| `civicflow-mysql` | 保存用户、网点、预约等数据 | `3306` |
+| `civicflow-redis` | 缓存、库存和幂等控制 | `6379` |
+| `civicflow-rabbitmq` | 处理异步消息 | `5672`，管理页面 `15672` |
+| `civicflow-nacos` | 服务注册和配置 | `8848`，通信端口 `9848` |
+
+第一次需要下载镜像和 Python 依赖，请等待。看到 **`Ready for IDEA Local run configurations.`** 后，执行：
+
+```powershell
+docker ps --filter "name=civicflow-"
+```
+
+**检查结果：** 上面四个容器都在运行，并显示 `healthy`。此时还没有启动网页和业务后端，接着做下一步。
+
+以后每次用 IDEA 启动项目，都先执行一次 `prepare`；也可以在 IDEA 顶部的运行配置中选择 **`CivicFlow - Prepare IDEA`**，点击运行。准备程序会在后台保持运行，为后端刷新内部通信凭据，调试期间不要执行 `stop-local.cmd`。
+
+如果只是想单独重启这四个基础容器，**准备成功后**可以执行下面两行。第一行取得它们实际所属的 Compose 项目名，避免创建重复容器；这两行不能替代首次的 `prepare`：
+
+```powershell
+$ideaComposeProject = docker inspect civicflow-mysql --format '{{ index .Config.Labels "com.docker.compose.project" }}'
+docker compose -p $ideaComposeProject up -d --wait --wait-timeout 300 mysql redis rabbitmq nacos
+```
+
+### ③ 在 IDEA 启动后端
+
+打开 IDEA 顶部的运行配置下拉框，选择下表中的配置，逐个点击绿色运行按钮（调试时点击小虫子）。**一个服务启动成功后，再启动下一个。** 不要直接使用没有本地配置的默认 `Application` 启动项。
+
+| 顺序 | IDEA 配置 | 用途 |
+| --- | --- | --- |
+| 1 | `Local Auth` | 登录和用户管理 |
+| 2 | `Local Resource` | 网点、事项、窗口和号源 |
+| 3 | `Local Appointment` | 预约 |
+| 4 | `Local Queue` | 排队叫号 |
+| 5 | `Local Gateway` | 统一访问后端 |
+
+**检查结果：** 每个服务的 Run 窗口出现 `Started ...Application`，且没有随后退出或报错。`Local Auth` 启动后，后台准备程序会自动创建初始管理员；已有账号和密码会保留。
+
+如果 IDEA 没有这些配置或提示不支持 Spring Boot 配置，可以按 [IDEA 的 Application 配置说明](https://www.jetbrains.com/help/idea/run-debug-configuration-java-application.html) 在 **Run → Edit Configurations → + → Application** 中手动新建。JDK 选 17，模块选对应的 `civicflow-...`，工作目录选项目根目录，主类和配置文件对应如下：
+
+| 服务 | Main class（主类） | 配置文件 |
+| --- | --- | --- |
+| Auth | `com.civicflow.auth.AuthApplication` | `auth.properties` |
+| Resource | `com.civicflow.resource.ResourceApplication` | `resource.properties` |
+| Appointment | `com.civicflow.appointment.AppointmentApplication` | `appointment.properties` |
+| Queue | `com.civicflow.queue.QueueApplication` | `queue.properties` |
+| Gateway | `com.civicflow.gateway.GatewayApplication` | `gateway.properties` |
+
+点击 **Modify options → Add VM options**，为每个服务填写下面这一行。将示例路径换成自己的项目路径，并将 `auth.properties` 换成该服务对应的文件名；这是 **VM options**，不是 Program arguments：
+
+```text
+-Dspring.config.additional-location="file:D:/projects/CivicFlow-main/.local/dev/auth.properties"
+```
+
+### ④ 安装前端依赖，启动网页
+
+另开一个 PowerShell 窗口，`cd` 进入同一个项目文件夹，依次执行：
+
+```powershell
+npm.cmd --prefix civicflow-web ci
 npm.cmd --prefix civicflow-web run dev -- --host 127.0.0.1 --port 5173 --strictPort
 ```
 
-前端终端保持开启，按 `Ctrl+C` 停止。本机启动日志在 `.local/dev/`，启动代码在 `deploy/local/`。不要同时再启动 Docker 模式。
+第一行安装前端依赖，第一次使用必须执行；依赖没有变化时，下次可以只执行第二行。看到 `http://127.0.0.1:5173/` 后，保持这个窗口开启。
 
-如果从本机模式切换回 Docker，先停止本机应用、IDEA 服务和四个基础设施容器：
+### ⑤ 打开网页，查看账号
+
+浏览器打开 **[http://localhost:5173](http://localhost:5173)**。另开 PowerShell，在项目目录执行：
+
+```powershell
+Get-Content .local/dev/login.txt
+```
+
+用文件里的用户名和密码登录，后续操作见第 2 节。`.local` 是启动时自动生成的，不需要提交到 GitHub。文件暂未出现时，确认 `Local Auth` 已启动成功，并稍等几秒；准备日志在 `.local/dev/launcher.log`。如果以前修改过账号密码，使用修改后的密码。
+
+### ⑥ 停止项目，下次再启动
+
+1. 在 IDEA 中停止自己启动的所有后端服务。
+2. 在运行前端的 PowerShell 中按 `Ctrl+C`。
+3. 在项目目录执行下面一行，停止后台准备程序；数据库容器和数据会保留：
+
+```powershell
+powershell -NoProfile -File deploy/local/dev.ps1 stop
+```
+
+下次打开 Docker Desktop，再按 **② → ③ → ④ → ⑤** 操作即可。想同时停止基础容器，再执行：
 
 ```powershell
 docker stop civicflow-mysql civicflow-redis civicflow-rabbitmq civicflow-nacos
 ```
 
-若提示同名容器已存在，执行下面的命令查看原 Compose 项目名：
+如果要切换回整套 Docker 启动，先按上面步骤停止本机应用和四个基础容器，再执行第 1 节的 Docker 启动命令。不要同时运行两种模式。若提示同名容器已存在，查看原 Compose 项目名：
 
 ```powershell
 docker inspect civicflow-mysql --format '{{ index .Config.Labels "com.docker.compose.project" }}'
