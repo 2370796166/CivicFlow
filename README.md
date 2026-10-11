@@ -242,7 +242,7 @@ docker compose up -d --wait --wait-timeout 300
 
 ### ① 准备工具，打开项目
 
-安装 Docker Desktop、**JDK 17**、Maven 3.9+、Node.js 24 或 22.12+、Python 3.10+，再安装 IntelliJ IDEA。打开 Docker Desktop，等待 Linux 容器引擎启动。
+安装 Docker Desktop、**JDK 17**、Maven 3.9+、**Node.js 24.12+（推荐）或 22.20+**、Python 3.10+，再安装 IntelliJ IDEA。打开 Docker Desktop，等待 Linux 容器引擎启动。
 
 按照第 1 节第 ② 步下载、解压项目，并在 PowerShell 中进入项目文件夹。执行下面的命令，确认每个工具都能显示版本；找不到哪个命令，就先安装对应工具并重新打开 PowerShell：
 
