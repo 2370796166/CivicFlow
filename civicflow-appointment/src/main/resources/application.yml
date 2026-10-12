@@ -1,4 +1,15 @@
 spring:
+  task:
+    scheduling:
+      pool:
+        size: 4
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 1000
+            readTimeout: 3000
   application:
     name: civicflow-appointment
   profiles:
@@ -23,16 +34,26 @@ server:
     accept-count: 2048
 
 management:
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        civicflow.reservation.request: true
+        civicflow.reservation.stage: true
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       show-details: never
 
 civicflow:
   appointment:
+    rules:
+      advance-days: ${CIVICFLOW_BOOKING_ADVANCE_DAYS:30}
+      cancellation-notice: ${CIVICFLOW_CANCELLATION_NOTICE:0m}
+      reminder-lead: ${CIVICFLOW_REMINDER_LEAD:1h}
     environment: ${CIVICFLOW_ENV:dev}
     check-in:
       signing-key-base64: ${CIVICFLOW_CHECKIN_SIGNING_KEY:}
@@ -48,6 +69,7 @@ civicflow:
       reservation-ttl: ${CIVICFLOW_RESERVATION_TTL:10m}
       retention-after-close: ${CIVICFLOW_STOCK_RETENTION:2d}
     reservation:
+      async-publish: ${CIVICFLOW_APPOINTMENT_ASYNC_PUBLISH:true}
       confirm-deadline: ${CIVICFLOW_APPOINTMENT_CONFIRM_DEADLINE:5m}
       publish-confirm-timeout: ${CIVICFLOW_APPOINTMENT_PUBLISH_CONFIRM_TIMEOUT:3s}
       publish-max-attempts: ${CIVICFLOW_APPOINTMENT_PUBLISH_MAX_ATTEMPTS:3}
@@ -55,7 +77,7 @@ civicflow:
       poll-after-ms: ${CIVICFLOW_APPOINTMENT_POLL_AFTER_MS:500}
     recovery:
       enabled: ${CIVICFLOW_APPOINTMENT_RECOVERY_ENABLED:true}
-      fixed-delay: ${CIVICFLOW_APPOINTMENT_RECOVERY_DELAY:10s}
+      fixed-delay: ${CIVICFLOW_APPOINTMENT_RECOVERY_DELAY:1s}
       retry-delay: ${CIVICFLOW_APPOINTMENT_RECOVERY_RETRY_DELAY:30s}
       lease: ${CIVICFLOW_APPOINTMENT_RECOVERY_LEASE:30s}
       batch-size: ${CIVICFLOW_APPOINTMENT_RECOVERY_BATCH_SIZE:50}

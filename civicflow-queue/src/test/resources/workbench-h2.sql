@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS queue_sync_audit;
 DROP TABLE IF EXISTS queue_state_sync;
 CREATE ALIAS IF NOT EXISTS UTC_TIMESTAMP FOR "com.civicflow.queue.H2UtcClock.now";
 DROP TABLE IF EXISTS queue_command_idempotency;
@@ -25,3 +26,6 @@ CREATE TABLE queue_command_idempotency (id BIGINT PRIMARY KEY,staff_user_id BIGI
 CREATE TABLE queue_state_sync (id BIGINT PRIMARY KEY,ticket_id BIGINT NOT NULL,appointment_id BIGINT NOT NULL,target_status VARCHAR(32) NOT NULL,
  status VARCHAR(16) NOT NULL,attempts INT NOT NULL DEFAULT 0,next_attempt_at TIMESTAMP(3) NOT NULL,last_error_code VARCHAR(64),
  created_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,updated_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,UNIQUE(ticket_id,target_status));
+ALTER TABLE queue_state_sync ADD COLUMN lease_owner CHAR(36);
+ALTER TABLE queue_state_sync ADD COLUMN lease_until TIMESTAMP(3);
+CREATE TABLE queue_sync_audit(id BIGINT PRIMARY KEY,sync_id BIGINT NOT NULL,actor_id BIGINT NOT NULL,request_id VARCHAR(64) NOT NULL,reason VARCHAR(256) NOT NULL,created_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP);

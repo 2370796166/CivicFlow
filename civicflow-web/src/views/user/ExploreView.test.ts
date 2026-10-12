@@ -20,6 +20,14 @@ async function ready() {
 function bookButton(wrapper: ReturnType<typeof mount>) { return wrapper.findAll('button').find(button => button.text() === '预约此时段')! }
 
 describe('ExploreView booking', () => {
+  it('does not submit a slot whose live inventory is exhausted', async () => {
+    slots.mockResolvedValue({ items: [{ ...slot, remaining: 0 }], total: 1 })
+    const wrapper = await ready()
+    const button = wrapper.findAll('button').find(item => item.text() === '已约满')!
+    expect(button.attributes('disabled')).toBeDefined()
+    await button.trigger('click')
+    expect(reserve).not.toHaveBeenCalled()
+  })
   beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-09T01:00:00Z')); slots.mockReset(); reserve.mockReset(); push.mockReset(); slots.mockResolvedValue({ items: [slot], total: 1 }) })
   afterEach(() => { for (const wrapper of wrappers.splice(0)) wrapper.unmount(); vi.useRealTimers() })
   it('submits a string slot ID once and enters the reservation result page', async () => {

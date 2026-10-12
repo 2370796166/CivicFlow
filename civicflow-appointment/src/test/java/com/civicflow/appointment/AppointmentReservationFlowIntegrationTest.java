@@ -69,6 +69,7 @@ class AppointmentReservationFlowIntegrationTest {
     @Autowired private AppointmentCreationService creationService;
     @Autowired private ReservationCreateListener listener;
     @Autowired private AppointmentReservationRequestMapper requestMapper;
+    @Autowired private com.civicflow.appointment.config.AppointmentProperties properties;
 
     @MockitoBean private ResourceSlotClient resourceClient;
     @MockitoBean private ReservationStockService stockService;
@@ -144,6 +145,30 @@ class AppointmentReservationFlowIntegrationTest {
         } finally {
             continueFirst.countDown();
             pool.shutdownNow();
+        }
+    }
+
+    @Test
+    void asyncAdmissionPersistsCanonicalEventBeforeBackgroundPublication() {
+        properties.getReservation().setAsyncPublish(true);
+        try {
+            var accepted = workflowService.create(USER_ID, SLOT_ID, "async-key", "async-trace");
+            assertEquals("CREATING", accepted.response().status());
+            org.mockito.Mockito.verifyNoInteractions(publisher);
+            var request =
+                    requestMapper.selectOne(
+                            com.baomidou.mybatisplus.core.toolkit.Wrappers
+                                    .<AppointmentReservationRequestEntity>lambdaQuery()
+                                    .eq(
+                                            AppointmentReservationRequestEntity::getReservationId,
+                                            accepted.response().reservationId()));
+            assertEquals("RESERVED", request.getStatus().name());
+            assertTrue(request.getEventJson() != null);
+            workflowService.recover(request.getId());
+            verify(publisher).publish(any());
+            assertEquals("PUBLISHED", requestMapper.selectById(request.getId()).getStatus().name());
+        } finally {
+            properties.getReservation().setAsyncPublish(false);
         }
     }
 

@@ -15,4 +15,6 @@ public interface AppointmentStateService {
             String traceId);
 
     void expire(long appointmentId, String traceId);
+
+    void noShow(long appointmentId, int version, java.time.Instant checkInEnd, String traceId);
 }

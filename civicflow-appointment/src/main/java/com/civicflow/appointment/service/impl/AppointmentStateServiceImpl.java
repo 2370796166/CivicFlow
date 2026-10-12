@@ -47,6 +47,8 @@ public class AppointmentStateServiceImpl implements AppointmentStateService {
     private final StockReleaseRecordMapper releases;
     private final AppointmentReservationRequestMapper requests;
     private final StockReleaseService stockRelease;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
+    private final com.civicflow.appointment.config.AppointmentProperties properties;
 
     public AppointmentStateServiceImpl(
             AppointmentOrderMapper orders,
@@ -55,7 +57,9 @@ public class AppointmentStateServiceImpl implements AppointmentStateService {
             ActiveBookingGuardMapper guards,
             StockReleaseRecordMapper releases,
             AppointmentReservationRequestMapper requests,
-            StockReleaseService stockRelease) {
+            StockReleaseService stockRelease,
+            org.springframework.jdbc.core.JdbcTemplate jdbc,
+            com.civicflow.appointment.config.AppointmentProperties properties) {
         this.orders = orders;
         this.commands = commands;
         this.logs = logs;
@@ -63,6 +67,8 @@ public class AppointmentStateServiceImpl implements AppointmentStateService {
         this.releases = releases;
         this.requests = requests;
         this.stockRelease = stockRelease;
+        this.jdbc = jdbc;
+        this.properties = properties;
     }
 
     @Override
@@ -140,7 +146,8 @@ public class AppointmentStateServiceImpl implements AppointmentStateService {
         Instant cutoff =
                 LocalDateTime.of(before.getServiceDate(), before.getSlotStartTime())
                         .atZone(BUSINESS_ZONE)
-                        .toInstant();
+                        .toInstant()
+                        .minus(properties.getRules().getCancellationNotice());
         if (orders.cancel(appointmentId, userId, version, reason.trim(), cutoff) != 1) {
             AppointmentOrderEntity current = owned(userId, appointmentId);
             if (current.getStatus() == AppointmentStatus.CANCELLED
@@ -187,6 +194,33 @@ public class AppointmentStateServiceImpl implements AppointmentStateService {
                 "CONFIRM_DEADLINE_ELAPSED",
                 traceId,
                 StockReleaseReason.APPOINTMENT_EXPIRED);
+    }
+
+    @Override
+    @Transactional
+    public void noShow(long appointmentId, int version, Instant checkInEnd, String traceId) {
+        if (checkInEnd == null || Instant.now().isBefore(checkInEnd)) return;
+        var before = orders.selectById(appointmentId);
+        if (before == null
+                || before.getStatus() != AppointmentStatus.CONFIRMED
+                || orders.noShow(appointmentId, version) != 1) return;
+        guards.delete(
+                Wrappers.<com.civicflow.appointment.entity.ActiveBookingGuardEntity>lambdaQuery()
+                        .eq(
+                                com.civicflow.appointment.entity.ActiveBookingGuardEntity
+                                        ::getAppointmentId,
+                                appointmentId));
+        jdbc.update(
+                "INSERT IGNORE INTO appointment_active_release(appointment_id) VALUES(?)",
+                appointmentId);
+        log(
+                before,
+                AppointmentStatus.NO_SHOW,
+                AppointmentOperation.MARK_NO_SHOW,
+                AppointmentActorType.SYSTEM,
+                null,
+                "CHECK_IN_DEADLINE_ELAPSED",
+                traceId);
     }
 
     private void finish(

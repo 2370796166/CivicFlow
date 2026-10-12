@@ -27,7 +27,11 @@ const slotPage = ref(1), slotTotal = ref(0), slotsLoading = ref(false), slotsErr
 const reserving = ref(''), reservationNotice = ref('')
 const requestKeys = new Map<string, string>()
 const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
-const maxDate = new Date(Date.parse(`${today}T00:00:00Z`) + 365 * 86400000).toISOString().slice(0, 10)
+const maxDate = ref(new Date(Date.parse(`${today}T00:00:00Z`) + 30 * 86400000).toISOString().slice(0, 10))
+const closedDates = ref<string[]>([])
+async function loadRules() {
+  try { const rules = await userApi.bookingRules(); maxDate.value = new Date(Date.parse(`${today}T00:00:00Z`) + rules.advanceDays * 86400000).toISOString().slice(0, 10); closedDates.value = rules.closedDates } catch { /* Use the conservative default until the rule service recovers. */ }
+}
 const slotStatus = { BOOKABLE: '预约此时段', UPCOMING: '尚未放号', SUSPENDED: '暂停预约', CLOSED: '预约已截止' }
 let slotGeneration = 0, contextGeneration = 0, disposed = false
 let slotTimer: ReturnType<typeof setTimeout> | undefined
@@ -36,6 +40,7 @@ async function loadSlots() {
   clearTimeout(slotTimer)
   const generation = ++slotGeneration
   if (!outletId.value || !selectedItem.value || !selectedDate.value) return
+  if (closedDates.value.includes(selectedDate.value)) { slots.value = []; slotTotal.value = 0; return }
   slotsLoading.value = true; slotsError.value = false
   try {
     const result = await userApi.slots(outletId.value, selectedItem.value, selectedDate.value, slotPage.value)
@@ -50,7 +55,7 @@ async function loadSlots() {
   }
 }
 async function reserve(slot: UserSlot) {
-  if (reserving.value || slotsLoading.value || slot.bookingStatus !== 'BOOKABLE') return
+  if (reserving.value || slotsLoading.value || slot.bookingStatus !== 'BOOKABLE' || slot.remaining === 0) return
   reserving.value = slot.id; reservationNotice.value = ''
   const key = requestKeys.get(slot.id) ?? crypto.randomUUID()
   requestKeys.set(slot.id, key)
@@ -99,7 +104,7 @@ watch(() => route.params.outletId, (id) => {
   outletId.value = String(id ?? ''); selectedItem.value = ''; selectedDate.value = ''; outlet.value = null; itemPage.value = 1
   void (outletId.value ? loadOutlet() : loadOutlets())
 })
-onMounted(() => { document.addEventListener('visibilitychange', visibilityChanged); void (outletId.value ? loadOutlet() : loadOutlets()) })
+onMounted(() => { void loadRules(); document.addEventListener('visibilitychange', visibilityChanged); void (outletId.value ? loadOutlet() : loadOutlets()) })
 onUnmounted(() => { disposed = true; slotGeneration += 1; contextGeneration += 1; clearTimeout(slotTimer); document.removeEventListener('visibilitychange', visibilityChanged) })
 </script>
 
@@ -272,15 +277,15 @@ onUnmounted(() => { disposed = true; slotGeneration += 1; contextGeneration += 1
             :class="{ 'booking-slot-open': slot.bookingStatus === 'BOOKABLE' }"
           >
             <strong>{{ slot.startTime.slice(0, 5) }}–{{ slot.endTime.slice(0, 5) }}</strong>
-            <span>时段总名额 {{ slot.totalQuota }}</span>
+            <span>时段总名额 {{ slot.totalQuota }}<span v-if="slot.remaining !== undefined"> · {{ slot.remaining === null ? '余量待核实' : '剩余 ' + slot.remaining }}</span></span>
             <small v-if="slot.bookingStatus === 'UPCOMING'">{{ new Date(slot.releaseAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false }) }} 放号</small>
             <el-button
               :type="slot.bookingStatus === 'BOOKABLE' ? 'primary' : 'default'"
               :loading="reserving === slot.id"
-              :disabled="!!reserving || slotsLoading || slot.bookingStatus !== 'BOOKABLE'"
+              :disabled="!!reserving || slotsLoading || slot.bookingStatus !== 'BOOKABLE' || slot.remaining === 0"
               @click="reserve(slot)"
             >
-              {{ slotStatus[slot.bookingStatus] }}
+              {{ slot.remaining === 0 ? '已约满' : slotStatus[slot.bookingStatus] }}
             </el-button>
           </article>
         </div>

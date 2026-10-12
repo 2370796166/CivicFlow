@@ -49,7 +49,7 @@ class GatewayRateLimitFilterTest {
         String requestBody = "{\"slotId\":\"42\"}";
         ServerWebExchange exchange =
                 MockServerWebExchange.from(
-                                MockServerHttpRequest.post("/api/v1/user/reservations")
+                                MockServerHttpRequest.post("/api/v1/user/appointments/reservations")
                                         .contentType(MediaType.APPLICATION_JSON)
                                         .body(requestBody))
                         .mutate()
@@ -83,7 +83,8 @@ class GatewayRateLimitFilterTest {
         GatewayRateLimitFilter filter = filter(limiter);
         ServerWebExchange exchange =
                 MockServerWebExchange.from(
-                                MockServerHttpRequest.post("/api/v1/user/reservations").build())
+                                MockServerHttpRequest.post("/api/v1/user/appointments/reservations")
+                                        .build())
                         .mutate()
                         .principal(Mono.just(authentication()))
                         .build();

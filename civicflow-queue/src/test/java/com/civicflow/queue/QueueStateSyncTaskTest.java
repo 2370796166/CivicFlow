@@ -17,16 +17,18 @@ class QueueStateSyncTaskTest {
         QueueStateSyncMapper mapper = mock(QueueStateSyncMapper.class);
         AppointmentQueueStateClient appointment = mock(AppointmentQueueStateClient.class);
         QueueProperties properties = new QueueProperties();
-        var pending = new QueueStateSyncMapper.Pending(1L, 2L, 3L, "COMPLETED");
+        var pending = new QueueStateSyncMapper.Pending(1L, 2L, 3L, "COMPLETED", 0);
+        when(mapper.claim(eq(1L), anyString(), any())).thenReturn(1);
         when(mapper.due(50)).thenReturn(List.of(pending));
         when(appointment.change(eq(3L), any(AppointmentQueueStateClient.Change.class)))
                 .thenThrow(new IllegalStateException("unavailable"))
                 .thenReturn(null);
         QueueStateSyncTask task = new QueueStateSyncTask(mapper, appointment, properties);
         task.run();
-        verify(mapper).defer(1L, "IllegalStateException");
-        verify(mapper, never()).done(1L);
+        verify(mapper)
+                .defer(eq(1L), anyString(), eq("PENDING"), any(), eq("IllegalStateException"));
+        verify(mapper, never()).done(eq(1L), anyString());
         task.run();
-        verify(mapper).done(1L);
+        verify(mapper).done(eq(1L), anyString());
     }
 }

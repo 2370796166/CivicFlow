@@ -51,6 +51,11 @@
         SELECT id FROM appointment_order WHERE status='PENDING_CONFIRM'
         AND confirm_deadline &lt;= CURRENT_TIMESTAMP(3) ORDER BY confirm_deadline,id LIMIT #{limit}
     </select>
+    <update id="noShow">
+        UPDATE appointment_order SET status='NO_SHOW',no_show_at=CURRENT_TIMESTAMP(3),
+            version=version+1,updated_at=CURRENT_TIMESTAMP(3)
+        WHERE id=#{id} AND version=#{version} AND status='CONFIRMED'
+    </update>
     <update id="setQr">
         UPDATE appointment_order SET qr_nonce_hash=#{hash},qr_expires_at=#{expiresAt},
         qr_key_id=#{keyId},version=version+1,updated_at=CURRENT_TIMESTAMP(3)

@@ -31,6 +31,14 @@ public class ResourceSlotSnapshotServiceImpl implements ResourceSlotSnapshotServ
     }
 
     @Override
+    public List<SlotSnapshotResponse> userCandidates(
+            long outletId, long itemId, java.time.LocalDate date) {
+        return mapper.selectUserCandidates(outletId, itemId, date).stream()
+                .map(ResourceSlotSnapshotServiceImpl::toResponse)
+                .toList();
+    }
+
+    @Override
     public SlotCandidatePageResponse candidates(
             Instant releaseFrom, Instant releaseTo, long afterId, int size) {
         if (releaseFrom == null
