@@ -1,5 +1,5 @@
 import { createApp } from 'vue'
-import ElementPlus from 'element-plus'
+import { ElButton, ElTag, ElInput, ElSelect, ElOption, ElPagination, ElDialog, ElTable, ElTableColumn, ElCheckbox, ElCheckboxGroup, ElLoading, ElCalendar, ElDropdown, ElDropdownItem, ElDropdownMenu, ElSkeleton } from 'element-plus'
 import 'element-plus/dist/index.css'
 import App from './App.vue'
 import { pinia } from '@/stores/pinia'
@@ -9,4 +9,7 @@ import './style.css'
 
 setUnauthorizedHandler(() => { void router.replace({ name: 'login', query: { redirect: router.currentRoute.value.fullPath } }) })
 setForbiddenHandler(() => { void router.replace({ name: 'forbidden' }) })
-createApp(App).use(pinia).use(router).use(ElementPlus).mount('#app')
+const app = createApp(App).use(pinia).use(router)
+for (const component of [ElButton, ElTag, ElInput, ElSelect, ElOption, ElPagination, ElDialog, ElTable, ElTableColumn, ElCheckbox, ElCheckboxGroup, ElCalendar, ElDropdown, ElDropdownItem, ElDropdownMenu, ElSkeleton]) app.use(component)
+app.use(ElLoading)
+app.mount('#app')

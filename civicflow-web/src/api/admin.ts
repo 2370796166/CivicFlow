@@ -12,6 +12,7 @@ export const adminApi = {
   updateResource(kind: ResourceKind, id: string, value: Record<string, unknown>) { return body(api.put<ApiResponse<AdminResource>>(`/admin/${kind}/${id}`, value, { headers: key(), ...quiet })) },
   resourceStatus(kind: ResourceKind, row: AdminResource, status: ResourceStatus) { return body(api.patch<ApiResponse<AdminResource>>(`/admin/${kind}/${row.id}/status`, { status, version: row.version }, { headers: key(), ...quiet })) },
   deleteResource(kind: ResourceKind, row: AdminResource) { return body(api.delete<ApiResponse<null>>(`/admin/${kind}/${row.id}`, { params: { version: row.version }, headers: key(), ...quiet })) },
+  windowItems(id: string) { return body(api.get<ApiResponse<{ windowId: string; version: number; itemIds: string[] }>>(`/admin/windows/${id}/items`, quiet)) },
   bindWindowItems(row: AdminWindow, itemIds: string[]) { return body(api.put<ApiResponse<{ windowId: string; version: number; itemIds: string[] }>>(`/admin/windows/${row.id}/items`, { itemIds, version: row.version }, { headers: key(), ...quiet })) },
   slots(params: { page: number; size?: number; outletId?: string; itemId?: string; dateFrom?: string; dateTo?: string; status?: string }) { return body(api.get<ApiResponse<Page<AdminSlot>>>('/admin/slots', { params, ...quiet })) },
   slot(id: string) { return body(api.get<ApiResponse<AdminSlot>>(`/admin/slots/${id}`, quiet)) },

@@ -12,6 +12,12 @@ import org.springframework.web.bind.annotation.RequestParam;
         url = "${civicflow.appointment.resource-client.url:}",
         configuration = ResourceClientConfig.class)
 public interface ResourceSlotClient {
+    @GetMapping("/internal/v1/resource/slots/user-candidates")
+    ApiResponse<java.util.List<ResourceSlotSnapshot>> getUserCandidates(
+            @RequestParam("outletId") long outletId,
+            @RequestParam("itemId") long itemId,
+            @RequestParam("date") java.time.LocalDate date);
+
     @GetMapping("/internal/v1/resource/slots/{slotId}/snapshot")
     ApiResponse<ResourceSlotSnapshot> getSnapshot(@PathVariable("slotId") long slotId);
 

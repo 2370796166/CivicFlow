@@ -1,0 +1,18 @@
+groups:
+  - name: civicflow
+    rules:
+      - alert: CivicFlowReservationStuck
+        expr: civicflow_reservation_oldest_seconds > 120
+        for: 2m
+        labels: { severity: warning }
+        annotations: { summary: "预约预占或补偿长期未收敛" }
+      - alert: CivicFlowMetricsStale
+        expr: time() - civicflow_metrics_refreshed_timestamp > 120
+        for: 2m
+        labels: { severity: warning }
+        annotations: { summary: "预约业务指标采集已停止" }
+      - alert: CivicFlowQueueSyncNeedsAttention
+        expr: civicflow_queue_sync_pending{status="NEEDS_ATTENTION"} > 0
+        for: 1m
+        labels: { severity: warning }
+        annotations: { summary: "排队状态同步需要人工处理" }

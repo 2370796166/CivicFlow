@@ -25,6 +25,31 @@ public class AppointmentProperties {
     @Valid private Preheat preheat = new Preheat();
     @Valid private Reconciliation reconciliation = new Reconciliation();
     @Valid private CheckIn checkIn = new CheckIn();
+    @Valid private Rules rules = new Rules();
+
+    @Getter
+    @Setter
+    public static class Rules {
+        @NotNull private java.util.Set<java.time.LocalDate> closedDates = new java.util.HashSet<>();
+
+        @Min(1)
+        @Max(90)
+        private int advanceDays = 30;
+
+        @NotNull private Duration cancellationNotice = Duration.ZERO;
+        @NotNull private Duration reminderLead = Duration.ofHours(1);
+
+        @jakarta.validation.constraints.AssertTrue(
+                message =
+                        "Rule durations must be non-negative and reminderLead must not exceed one day")
+        public boolean isDurationsValid() {
+            return cancellationNotice != null
+                    && !cancellationNotice.isNegative()
+                    && reminderLead != null
+                    && !reminderLead.isNegative()
+                    && reminderLead.compareTo(Duration.ofDays(1)) <= 0;
+        }
+    }
 
     @Getter
     @Setter
@@ -61,6 +86,7 @@ public class AppointmentProperties {
     @Getter
     @Setter
     public static class Reservation {
+        private boolean asyncPublish = true;
         @NotNull private Duration confirmDeadline = Duration.ofMinutes(5);
         @NotNull private Duration publishConfirmTimeout = Duration.ofSeconds(3);
 

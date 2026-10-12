@@ -92,6 +92,7 @@ class ReleaseHardeningIntegrationTest {
     @Autowired JdbcTemplate db;
     @Autowired ObjectMapper json;
     @Autowired ReservationWorkflowService workflow;
+    @Autowired com.civicflow.appointment.config.AppointmentProperties appointmentProperties;
     @Autowired AppointmentCreationService creation;
     @Autowired ReservationCreateListener consumer;
     @Autowired ReservationEventPublisher publisher;
@@ -200,6 +201,43 @@ class ReleaseHardeningIntegrationTest {
         load(41001, 100, 1000, false);
         load(41002, 1, 100, true);
         load(41003, 1, 100, true);
+    }
+
+    @Test
+    void asynchronousAdmissionRecoversWithRealBrokerAndPreservesOneOrder() throws Exception {
+        var snapshot = slot(41004, 1);
+        appointmentProperties.getReservation().setAsyncPublish(true);
+        try {
+            var admitted =
+                    workflow.create(
+                            41004,
+                            Long.parseLong(snapshot.slotId()),
+                            "async-real",
+                            "async-real-trace");
+            assertEquals("CREATING", admitted.response().status());
+            String reservation = admitted.response().reservationId();
+            long requestId =
+                    db.queryForObject(
+                            "SELECT id FROM appointment_reservation_request WHERE reservation_id=?",
+                            Long.class,
+                            reservation);
+            assertEquals(
+                    "RESERVED",
+                    text(
+                            "SELECT status FROM appointment_reservation_request WHERE id=?",
+                            requestId));
+            workflow.recover(requestId);
+            settled(41004, 1);
+            workflow.recover(requestId);
+            assertEquals(
+                    1,
+                    count(
+                            "SELECT COUNT(*) FROM appointment_order WHERE reservation_id=?",
+                            reservation));
+            assertEquals(0, stock.reconciliationSnapshot(snapshot.toStockSnapshot()).remaining());
+        } finally {
+            appointmentProperties.getReservation().setAsyncPublish(false);
+        }
     }
 
     void load(long id, int quota, int users, boolean sameUser) throws Exception {

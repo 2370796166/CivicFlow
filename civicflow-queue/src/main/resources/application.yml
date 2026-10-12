@@ -23,6 +23,7 @@ server:
 
 civicflow:
   queue:
+    sync-max-attempts: ${CIVICFLOW_QUEUE_SYNC_MAX_ATTEMPTS:20}
     jwt:
       issuer: ${CIVICFLOW_JWT_ISSUER:https://auth.civicflow.local}
       audience: ${CIVICFLOW_JWT_AUDIENCE:civicflow-api}
@@ -34,7 +35,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       show-details: never

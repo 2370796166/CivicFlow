@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import ResourcesView from './ResourcesView.vue'
+vi.mock('element-plus', () => ({ ElMessage: { error: vi.fn(), success: vi.fn() }, ElMessageBox: { confirm: vi.fn() } }))
 const resources = vi.fn()
 vi.mock('@/api/admin', () => ({ adminApi: { resources: (...args: unknown[]) => resources(...args) } }))
 describe('ResourcesView', () => {

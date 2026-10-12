@@ -111,15 +111,20 @@ async function loadBindingItems() {
   try { const result = await adminApi.resources('items', { page: bindingPage.value, size: 20, status: 'ENABLED' }); bindingItems.value = result.items as AdminItem[]; bindingTotal.value = result.total }
   catch (error) { bindingError.value = adminErrorMessage(error) }
 }
-function openBinding(row: AdminResource) {
+async function openBinding(row: AdminResource) {
   if (!('outletId' in row)) return
-  bindingWindow.value = row as AdminWindow; selectedIds.value = []; bindingPage.value = 1; bindingError.value = ''; binding.value = true
-  void loadBindingItems()
+  bindingPage.value = 1; bindingError.value = ''
+  try {
+    const existing = await adminApi.windowItems(row.id)
+    bindingWindow.value = { ...row, version: existing.version } as AdminWindow
+    selectedIds.value = [...existing.itemIds]; binding.value = true
+    await loadBindingItems()
+  } catch (error) { ElMessage.error(adminErrorMessage(error)) }
 }
 async function saveBinding() {
   if (!bindingWindow.value || busy.value) return
   busy.value = true
-  try { await ElMessageBox.confirm(`将“${bindingWindow.value.name}”的事项绑定替换为当前选择的 ${selectedIds.value.length} 项。现有绑定无法读取，未选择的旧绑定会被移除。确认继续？`, '确认替换事项', { type: 'warning' }) }
+  try { await ElMessageBox.confirm(`将“${bindingWindow.value.name}”的事项绑定替换为当前选择的 ${selectedIds.value.length} 项。未选择的旧绑定将被移除。确认继续？`, '确认替换事项', { type: 'warning' }) }
   catch { busy.value = false; return }
   try { await adminApi.bindWindowItems(bindingWindow.value, selectedIds.value); binding.value = false; await load() }
   catch (error) { bindingError.value = adminErrorMessage(error); await load() }

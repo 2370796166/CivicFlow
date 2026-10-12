@@ -5,6 +5,9 @@ import com.civicflow.resource.dto.response.SlotSnapshotResponse;
 import java.time.Instant;
 
 public interface ResourceSlotSnapshotService {
+    java.util.List<SlotSnapshotResponse> userCandidates(
+            long outletId, long itemId, java.time.LocalDate date);
+
     SlotSnapshotResponse get(long slotId);
 
     SlotCandidatePageResponse candidates(

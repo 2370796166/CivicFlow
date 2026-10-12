@@ -43,11 +43,16 @@ async function signOut() {
             :class="{ active: route.path.startsWith('/user/appointments') }"
           >
             <span class="nav-dot" />我的预约
+          </RouterLink><RouterLink
+            to="/user/messages"
+            :class="{ active: route.path === '/user/messages' }"
+          >
+            <span class="nav-dot" />站内消息
           </RouterLink>
         </template>
         <template v-if="auth.roles.includes('ADMIN')">
           <RouterLink
-            v-for="entry in [{ path: '/admin/outlets', title: '网点' }, { path: '/admin/items', title: '事项' }, { path: '/admin/windows', title: '窗口' }, { path: '/admin/slots', title: '号源日历' }, { path: '/admin/users', title: '用户与角色' }, { path: '/admin/reconciliations', title: '号源对账' }, { path: '/admin/appointments', title: '预约查询' }, { path: '/admin/operation-logs', title: '操作日志' }]"
+            v-for="entry in [{ path: '/admin/outlets', title: '网点' }, { path: '/admin/items', title: '事项' }, { path: '/admin/windows', title: '窗口' }, { path: '/admin/slots', title: '号源日历' }, { path: '/admin/users', title: '用户与角色' }, { path: '/admin/reconciliations', title: '号源对账' }, { path: '/admin/reconciliation-history', title: '对账历史' }, { path: '/admin/statistics', title: '预约统计' }, { path: '/admin/syncs', title: '同步异常' }, { path: '/admin/appointments', title: '预约查询' }, { path: '/admin/operation-logs', title: '操作日志' }]"
             :key="entry.path"
             :to="entry.path"
             :class="{ active: route.path === entry.path }"

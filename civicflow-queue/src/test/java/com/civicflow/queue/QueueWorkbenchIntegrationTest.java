@@ -107,6 +107,18 @@ class QueueWorkbenchIntegrationTest {
     }
 
     @Test
+    void syncLeaseRejectsCompetingAndStaleOwners() {
+        stateSync.enqueue(90,91,92,"SERVING");
+        assertEquals(1,stateSync.claim(90,"owner-a",java.time.Instant.now().plusSeconds(30)));
+        assertEquals(0,stateSync.claim(90,"owner-b",java.time.Instant.now().plusSeconds(30)));
+        assertEquals(0,stateSync.done(90,"owner-b"));
+        jdbc.update("UPDATE queue_state_sync SET lease_until=? WHERE id=90", java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(1)));
+        assertEquals(1,stateSync.claim(90,"owner-b",java.time.Instant.now().plusSeconds(30)));
+        assertEquals(0,stateSync.done(90,"owner-a"));
+        assertEquals(1,stateSync.done(90,"owner-b"));
+    }
+
+    @Test
     void duplicateCallUnauthorizedWindowAndInvalidTransitions() {
         ticket(3, 0);
         assertThrows(
@@ -161,7 +173,10 @@ class QueueWorkbenchIntegrationTest {
                 jdbc.queryForObject(
                         "SELECT COUNT(*) FROM queue_state_sync WHERE ticket_id=4", Integer.class));
         assertEquals("SERVING", stateSync.due(10).get(0).targetStatus());
-        stateSync.done(stateSync.due(10).get(0).id());
+        long syncId = stateSync.due(10).get(0).id();
+        assertEquals(
+                1, stateSync.claim(syncId, "test-owner", java.time.Instant.now().plusSeconds(30)));
+        stateSync.done(syncId, "test-owner");
         assertEquals("COMPLETED", stateSync.due(10).get(0).targetStatus());
         assertEquals(
                 4,

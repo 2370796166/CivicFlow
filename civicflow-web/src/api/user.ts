@@ -1,10 +1,11 @@
 import { api } from './client'
 import type { ApiError, ApiResponse, Page } from '@/types/api'
-import type { Appointment, CheckInToken, Outlet, QueueProgress, ReservationCreate, ReservationResult, ServiceItem } from '@/types/user'
+import type { Appointment, CheckInToken, Outlet, QueueProgress, ReservationCreate, ReservationResult, ServiceItem, UserSlot } from '@/types/user'
 
 async function body<T>(request: Promise<{ data: ApiResponse<T> }>): Promise<T> { return (await request).data.data }
 
 export const userApi = {
+  slots(outletId: string, itemId: string, date: string) { return body(api.get<ApiResponse<UserSlot[]>>('/user/slots', { params: { outletId, itemId, date } })) },
   outlets(keyword = '', page = 1) { return body(api.get<ApiResponse<Page<Outlet>>>('/user/outlets', { params: { keyword, page } })) },
   outlet(id: string) { return body(api.get<ApiResponse<Outlet>>(`/user/outlets/${id}`)) },
   items(outletId: string, page = 1) { return body(api.get<ApiResponse<Page<ServiceItem>>>(`/user/outlets/${outletId}/items`, { params: { page } })) },

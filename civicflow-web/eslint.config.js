@@ -9,5 +9,5 @@ export default [
   ...tseslint.configs.recommended,
   ...pluginVue.configs['flat/recommended'],
   { files: ['**/*.vue'], languageOptions: { parserOptions: { parser: tseslint.parser, extraFileExtensions: ['.vue'] }, globals: { document: 'readonly', crypto: 'readonly', setTimeout: 'readonly', clearTimeout: 'readonly', setInterval: 'readonly', clearInterval: 'readonly' } } },
-  { rules: { 'vue/multi-word-component-names': 'off' } },
+  { languageOptions: { globals: { sessionStorage: 'readonly' } }, rules: { 'vue/multi-word-component-names': 'off' } },
 ]

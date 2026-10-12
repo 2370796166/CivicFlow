@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS user_message;
+DROP TABLE IF EXISTS appointment_active_release;
 DROP TABLE IF EXISTS stock_release_record;
 DROP TABLE IF EXISTS stock_reconciliation_detail;
 DROP TABLE IF EXISTS stock_reconciliation_run;
@@ -219,4 +221,13 @@ CREATE TABLE stock_admin_audit (
     occurred_at TIMESTAMP(3) NOT NULL,
     created_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE TABLE user_message (
+ id BIGINT NOT NULL PRIMARY KEY,user_id BIGINT NOT NULL,appointment_id BIGINT NOT NULL,
+ source_key VARCHAR(96) NOT NULL UNIQUE,title VARCHAR(128) NOT NULL,content VARCHAR(512) NOT NULL,
+ read_at TIMESTAMP(3),created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE appointment_active_release (
+ appointment_id BIGINT NOT NULL PRIMARY KEY,status VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+ created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,completed_at TIMESTAMP(3)
 );

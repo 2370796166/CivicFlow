@@ -41,6 +41,8 @@ public class AuthSecurityConfig {
                                                 "/actuator/health",
                                                 "/actuator/info")
                                         .permitAll()
+                                        .requestMatchers("/actuator/prometheus")
+                                        .hasRole("ADMIN")
                                         .anyRequest()
                                         .authenticated())
                 .oauth2ResourceServer(

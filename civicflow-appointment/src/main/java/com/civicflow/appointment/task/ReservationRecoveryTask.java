@@ -41,8 +41,9 @@ public class ReservationRecoveryTask {
         List<AppointmentReservationRequestEntity> candidates =
                 requestMapper.selectRecoverable(now, properties.getRecovery().getBatchSize());
         for (AppointmentReservationRequestEntity candidate : candidates) {
-            Instant leaseUntil = now.plus(properties.getRecovery().getLease());
-            if (requestMapper.claimRecovery(candidate.getId(), owner, now, leaseUntil) != 1) {
+            Instant claimedAt = clock.instant();
+            Instant leaseUntil = claimedAt.plus(properties.getRecovery().getLease());
+            if (requestMapper.claimRecovery(candidate.getId(), owner, claimedAt, leaseUntil) != 1) {
                 continue;
             }
             try {

@@ -37,6 +37,16 @@ public class InternalResourceSlotController {
         return ApiResponse.success(service.get(slotId), RequestIdFilter.current(request));
     }
 
+    @GetMapping("/user-candidates")
+    ApiResponse<java.util.List<SlotSnapshotResponse>> userCandidates(
+            @RequestParam @Positive long outletId,
+            @RequestParam @Positive long itemId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.time.LocalDate date,
+            HttpServletRequest request) {
+        return ApiResponse.success(
+                service.userCandidates(outletId, itemId, date), RequestIdFilter.current(request));
+    }
+
     @GetMapping("/preheat-candidates")
     ApiResponse<SlotCandidatePageResponse> candidates(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant releaseFrom,

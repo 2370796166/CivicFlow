@@ -30,7 +30,7 @@ class AppointmentFlywayMySqlIntegrationTest {
                         .locations("classpath:db/migration")
                         .load()
                         .migrate();
-        assertEquals(5, result.migrationsExecuted);
+        assertEquals(6, result.migrationsExecuted);
 
         try (Connection connection = MYSQL.createConnection("");
                 Statement statement = connection.createStatement();

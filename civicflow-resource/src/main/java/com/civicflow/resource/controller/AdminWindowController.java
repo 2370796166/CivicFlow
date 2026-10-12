@@ -39,9 +39,27 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminWindowController {
     private final ResourceAdminService service;
+    private final com.civicflow.resource.mapper.WindowItemRelMapper bindings;
 
-    public AdminWindowController(ResourceAdminService service) {
+    public AdminWindowController(
+            ResourceAdminService service,
+            com.civicflow.resource.mapper.WindowItemRelMapper bindings) {
         this.service = service;
+        this.bindings = bindings;
+    }
+
+    @GetMapping("/{id}/items")
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    ApiResponse<WindowItemsResponse> items(
+            @PathVariable @jakarta.validation.constraints.Positive long id,
+            HttpServletRequest request) {
+        var window = service.getWindow(id);
+        return ApiResponse.success(
+                new WindowItemsResponse(
+                        window.id(),
+                        window.version(),
+                        bindings.selectActiveItemIds(id).stream().map(Object::toString).toList()),
+                RequestIdFilter.current(request));
     }
 
     @GetMapping
