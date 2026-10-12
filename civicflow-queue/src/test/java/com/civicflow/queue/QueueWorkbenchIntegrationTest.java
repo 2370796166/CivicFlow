@@ -24,12 +24,14 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 
 @SpringBootTest
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Sql("/workbench-h2.sql")
 class QueueWorkbenchIntegrationTest {
     @Autowired QueueWorkbenchService workbench;
     @Autowired JdbcTemplate jdbc;
     @Autowired QueueStateSyncMapper stateSync;
+    @Autowired org.springframework.test.web.servlet.MockMvc mvc;
     @MockBean ResourceStaffClient resources;
 
     @BeforeEach
@@ -108,14 +110,91 @@ class QueueWorkbenchIntegrationTest {
 
     @Test
     void syncLeaseRejectsCompetingAndStaleOwners() {
-        stateSync.enqueue(90,91,92,"SERVING");
-        assertEquals(1,stateSync.claim(90,"owner-a",java.time.Instant.now().plusSeconds(30)));
-        assertEquals(0,stateSync.claim(90,"owner-b",java.time.Instant.now().plusSeconds(30)));
-        assertEquals(0,stateSync.done(90,"owner-b"));
-        jdbc.update("UPDATE queue_state_sync SET lease_until=? WHERE id=90", java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(1)));
-        assertEquals(1,stateSync.claim(90,"owner-b",java.time.Instant.now().plusSeconds(30)));
-        assertEquals(0,stateSync.done(90,"owner-a"));
-        assertEquals(1,stateSync.done(90,"owner-b"));
+        stateSync.enqueue(90, 91, 92, "SERVING");
+        jdbc.update(
+                "UPDATE queue_state_sync SET next_attempt_at=? WHERE id=90",
+                java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(1)));
+        assertEquals(1, stateSync.claim(90, "owner-a", java.time.Instant.now().plusSeconds(30)));
+        assertEquals(0, stateSync.claim(90, "owner-b", java.time.Instant.now().plusSeconds(30)));
+        assertEquals(0, stateSync.done(90, "owner-b"));
+        jdbc.update(
+                "UPDATE queue_state_sync SET lease_until=? WHERE id=90",
+                java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(1)));
+        assertEquals(1, stateSync.claim(90, "owner-b", java.time.Instant.now().plusSeconds(30)));
+        assertEquals(0, stateSync.done(90, "owner-a"));
+        assertEquals(1, stateSync.done(90, "owner-b"));
+    }
+
+    @Test
+    void administratorCanInspectEfficiencyAndAuditedRetry() throws Exception {
+        ticket(90, 0);
+        var base = java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        jdbc.update(
+                "UPDATE queue_ticket SET status='COMPLETED',called_window_id=101,checked_in_at=?,called_at=?,serving_at=?,completed_at=? WHERE id=90",
+                java.sql.Timestamp.from(base.minusSeconds(180)),
+                java.sql.Timestamp.from(base.minusSeconds(120)),
+                java.sql.Timestamp.from(base.minusSeconds(100)),
+                java.sql.Timestamp.from(base.minusSeconds(10)));
+        var admin =
+                org.springframework.security.test.web.servlet.request
+                        .SecurityMockMvcRequestPostProcessors.jwt()
+                        .jwt(j -> j.subject("1"))
+                        .authorities(
+                                new org.springframework.security.core.authority
+                                        .SimpleGrantedAuthority("ROLE_ADMIN"));
+        var user =
+                org.springframework.security.test.web.servlet.request
+                        .SecurityMockMvcRequestPostProcessors.jwt()
+                        .jwt(j -> j.subject("7"))
+                        .authorities(
+                                new org.springframework.security.core.authority
+                                        .SimpleGrantedAuthority("ROLE_USER"));
+        var day = LocalDate.now(ZoneId.of("Asia/Shanghai")).toString();
+        mvc.perform(
+                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+                                        "/api/v1/admin/queues/statistics")
+                                .param("dateFrom", day)
+                                .param("dateTo", day)
+                                .with(user))
+                .andExpect(
+                        org.springframework.test.web.servlet.result.MockMvcResultMatchers.status()
+                                .isForbidden());
+        mvc.perform(
+                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+                                        "/api/v1/admin/queues/statistics")
+                                .param("dateFrom", day)
+                                .param("dateTo", day)
+                                .with(admin))
+                .andExpect(
+                        org.springframework.test.web.servlet.result.MockMvcResultMatchers.status()
+                                .isOk())
+                .andExpect(
+                        org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                                        "$.data[0].completedCount")
+                                .value(1))
+                .andExpect(
+                        org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                                        "$.data[0].meanWaitSeconds")
+                                .value(60.0));
+        stateSync.enqueue(91, 90, 1090, "SERVING");
+        jdbc.update("UPDATE queue_state_sync SET status='NEEDS_ATTENTION' WHERE id=91");
+        mvc.perform(
+                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(
+                                        "/api/v1/admin/queues/syncs/91/retry")
+                                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                                .content("{\"reason\":\"服务身份已恢复\"}")
+                                .with(admin))
+                .andExpect(
+                        org.springframework.test.web.servlet.result.MockMvcResultMatchers.status()
+                                .isOk());
+        assertEquals(
+                "PENDING",
+                jdbc.queryForObject(
+                        "SELECT status FROM queue_state_sync WHERE id=91", String.class));
+        assertEquals(
+                1,
+                jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM queue_sync_audit WHERE sync_id=91", Integer.class));
     }
 
     @Test

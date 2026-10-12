@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import StatePanel from '@/components/StatePanel.vue'
 import { userApi } from '@/api/user'
 import { reservationTerminal } from '@/utils/userFlow'
+import { bookingErrorMessage } from '@/utils/bookingError'
 import type { ReservationResult } from '@/types/user'
 
 const route = useRoute()
@@ -38,13 +39,26 @@ onUnmounted(() => { active = false; clearTimeout(timer) })
     <span class="eyebrow">普通用户 / 抢号结果</span><h1>正在核实预约</h1><p>抢号请求已受理后，订单可能仍在创建中。</p>
   </div>
   <div class="content-card user-card">
-    <StatePanel
-      v-if="result?.status === 'FAILED'"
-      state="error"
-      title="本次预约未成功"
-      :description="result.failureCode || '请重新查看号源。'"
-      @retry="retry"
-    />
+    <template v-if="result?.status === 'FAILED'">
+      <StatePanel
+        state="error"
+        title="本次预约未成功"
+        :description="bookingErrorMessage(result.failureCode, '请重新查看号源。')"
+        @retry="retry"
+      /><div class="action-row">
+        <RouterLink
+          to="/user"
+          class="link-text"
+        >
+          重新选号
+        </RouterLink><RouterLink
+          to="/user/appointments"
+          class="link-text"
+        >
+          我的预约
+        </RouterLink>
+      </div>
+    </template>
     <template v-else-if="stopped">
       <div
         class="notice-box"
@@ -66,7 +80,7 @@ onUnmounted(() => { active = false; clearTimeout(timer) })
       v-else-if="error"
       state="error"
       title="网络暂时不可用"
-      description="将继续使用同一 reservationId 查询服务端结果。"
+      description="正在继续核实本次预约结果，请稍后再试。"
       @retry="retry"
     />
     <StatePanel

@@ -12,9 +12,10 @@ describe('ReservationView', () => {
   it('stops polling on server failure', async () => {
     vi.useFakeTimers()
     reservation.mockResolvedValue({ reservationId: 'res-1', status: 'FAILED', appointment: null, failureCode: 'APPT_409_SLOT_FULL' })
-    const wrapper = mount(ReservationView, { global: { stubs: { StatePanel: { props: ['description'], template: '<div>{{ description }}</div>' }, ElButton: true, RouterLink: true } } })
+    const wrapper = mount(ReservationView, { global: { stubs: { StatePanel: { props: ['description'], template: '<div>{{ description }}</div>' }, ElButton: true, RouterLink: { template: '<a><slot /></a>' } } } })
     await flushPromises()
-    expect(wrapper.text()).toContain('APPT_409_SLOT_FULL')
+    expect(wrapper.text()).toContain('该时段名额已约满')
+    expect(wrapper.text()).toContain('重新选号')
     await vi.advanceTimersByTimeAsync(120000)
     expect(reservation).toHaveBeenCalledTimes(1)
   })

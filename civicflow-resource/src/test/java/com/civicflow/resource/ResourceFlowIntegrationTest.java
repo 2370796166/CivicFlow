@@ -63,6 +63,157 @@ class ResourceFlowIntegrationTest {
     }
 
     @Test
+    void windowAssignmentsAreReadableVersionedIdempotentAndRevocable() throws Exception {
+        String outletId =
+                createOutlet("assignment-outlet", outletJson("ASSIGN", "Assignment Hall"));
+        String windowId = createWindow("assignment-window", outletId, "W01", "Window One");
+        jdbcTemplate.update(
+                "INSERT INTO staff_window_scope (id,staff_user_id,outlet_id,window_id,deleted) VALUES (700,31,?,0,0)",
+                Long.parseLong(outletId));
+        mockMvc.perform(get("/api/v1/admin/windows/{id}/staff", windowId).with(role("ADMIN", 1)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.staffUserIds.length()").value(0))
+                .andExpect(jsonPath("$.data.inheritedStaffUserIds[0]").value("31"));
+        String body = "{\"staffUserIds\":[\"30\"],\"version\":0}";
+        for (int replay = 0; replay < 2; replay++) {
+            mockMvc.perform(
+                            put("/api/v1/admin/windows/{id}/staff", windowId)
+                                    .with(role("ADMIN", 1))
+                                    .header("Idempotency-Key", "assign-staff")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(body))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.version").value(1))
+                    .andExpect(jsonPath("$.data.staffUserIds[0]").value("30"));
+        }
+        assertEquals(
+                1,
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM resource_admin_audit WHERE action='REPLACE_WINDOW_STAFF'",
+                        Integer.class));
+        mockMvc.perform(get("/api/v1/staff/scopes").with(role("STAFF", 30)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].windowId").value(windowId));
+        mockMvc.perform(get("/api/v1/admin/windows/{id}/items", windowId).with(role("ADMIN", 1)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value(1));
+        mockMvc.perform(
+                        put("/api/v1/admin/windows/{id}/staff", windowId)
+                                .with(role("ADMIN", 1))
+                                .header("Idempotency-Key", "stale-staff")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(body))
+                .andExpect(status().isConflict());
+        mockMvc.perform(
+                        put("/api/v1/admin/windows/{id}/staff", windowId)
+                                .with(role("USER", 30))
+                                .header("Idempotency-Key", "forbidden-staff")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(body))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(
+                        put("/api/v1/admin/windows/{id}/staff", windowId)
+                                .with(role("ADMIN", 1))
+                                .header("Idempotency-Key", "revoke-staff")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"staffUserIds\":[],\"version\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value(2));
+        mockMvc.perform(get("/api/v1/staff/scopes").with(role("STAFF", 30)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
+        mockMvc.perform(get("/api/v1/staff/scopes").with(role("STAFF", 31)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].windowId").value(windowId));
+    }
+
+    @Test
+    void publicSlotsHideDraftsAndDisabledResourcesAndDescribeBookingWindows() throws Exception {
+        String outletId = createOutlet("public-outlet", outletJson("PUBLIC", "Public Hall"));
+        String itemId = createItem("public-item", "PUBLIC_ITEM", "Permit");
+        String windowId = createWindow("public-window", outletId, "W01", "Window One");
+        mockMvc.perform(
+                        put("/api/v1/admin/windows/{id}/items", windowId)
+                                .with(role("ADMIN", 1))
+                                .header("Idempotency-Key", "public-bind")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"itemIds\":[\"" + itemId + "\"],\"version\":0}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/admin/windows/{id}/items", windowId).with(role("ADMIN", 1)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.itemIds[0]").value(itemId));
+        insertFutureSlot(outletId, itemId);
+        jdbcTemplate.update(
+                "INSERT INTO resource_slot (id,outlet_id,item_id,service_date,start_time,end_time,total_quota,release_at,check_in_start,check_in_end,status,created_by,updated_by) "
+                        + "SELECT 801,outlet_id,item_id,service_date,'11:00:00','12:00:00',total_quota,release_at,check_in_start,check_in_end,'DRAFT',created_by,updated_by FROM resource_slot WHERE id=800");
+        String date =
+                jdbcTemplate
+                        .queryForObject(
+                                "SELECT service_date FROM resource_slot WHERE id=800",
+                                LocalDate.class)
+                        .toString();
+        mockMvc.perform(
+                        get("/api/v1/user/slots")
+                                .with(role("USER", 20))
+                                .param("outletId", outletId)
+                                .param("itemId", itemId)
+                                .param("serviceDate", date))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].id").value("800"))
+                .andExpect(jsonPath("$.data.items[0].bookingStatus").value("BOOKABLE"))
+                .andExpect(jsonPath("$.data.items[0].consumedHint").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].remaining").doesNotExist());
+        for (String state : List.of("SUSPENDED", "CLOSED")) {
+            jdbcTemplate.update("UPDATE resource_slot SET status=? WHERE id=800", state);
+            mockMvc.perform(
+                            get("/api/v1/user/slots")
+                                    .with(role("USER", 20))
+                                    .param("outletId", outletId)
+                                    .param("itemId", itemId)
+                                    .param("serviceDate", date))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.items[0].bookingStatus").value(state));
+        }
+        jdbcTemplate.update(
+                "UPDATE resource_slot SET status='SCHEDULED', release_at=? WHERE id=800",
+                LocalDateTime.now().plusDays(1));
+        mockMvc.perform(
+                        get("/api/v1/user/slots")
+                                .with(role("USER", 20))
+                                .param("outletId", outletId)
+                                .param("itemId", itemId)
+                                .param("serviceDate", date))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].bookingStatus").value("UPCOMING"));
+        mockMvc.perform(
+                        get("/api/v1/user/slots")
+                                .with(role("USER", 20))
+                                .param("outletId", outletId)
+                                .param("itemId", itemId)
+                                .param("serviceDate", date)
+                                .param("size", "101"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(
+                        get("/api/v1/user/slots")
+                                .with(role("USER", 20))
+                                .param("outletId", outletId)
+                                .param("itemId", itemId)
+                                .param("serviceDate", "2000-01-01"))
+                .andExpect(status().isBadRequest());
+        jdbcTemplate.update(
+                "UPDATE service_item SET status='DISABLED' WHERE id=?", Long.parseLong(itemId));
+        mockMvc.perform(
+                        get("/api/v1/user/slots")
+                                .with(role("USER", 20))
+                                .param("outletId", outletId)
+                                .param("itemId", itemId)
+                                .param("serviceDate", date))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0));
+    }
+
+    @Test
     void enforcesRbacValidationUniquenessIdempotencyAndVersion() throws Exception {
         String body = outletJson("OUTLET_A", "Citizen Center");
         mockMvc.perform(

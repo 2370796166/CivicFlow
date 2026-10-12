@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.civicflow.resource.mapper.StaffWindowScopeMapper">
+    <select id="selectDirectStaffIds" resultType="long">
+        SELECT staff_user_id FROM staff_window_scope WHERE window_id = #{windowId} AND deleted = 0
+        ORDER BY staff_user_id
+    </select>
+    <select id="selectInheritedStaffIds" resultType="long">
+        SELECT staff_user_id FROM staff_window_scope WHERE outlet_id = #{outletId} AND window_id = 0 AND deleted = 0
+        ORDER BY staff_user_id
+    </select>
+    <update id="logicallyDeleteByWindow">
+        UPDATE staff_window_scope SET deleted = id, updated_at = CURRENT_TIMESTAMP
+        WHERE window_id = #{windowId} AND deleted = 0
+    </update>
     <select id="selectAuthorizedRows" resultType="com.civicflow.resource.dto.response.StaffScopeRow">
         SELECT DISTINCT o.id outlet_id, o.code outlet_code, o.name outlet_name,
                w.id window_id, w.code window_code, w.name window_name,

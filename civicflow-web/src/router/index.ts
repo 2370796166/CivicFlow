@@ -15,8 +15,10 @@ const ResourcesView = () => import('@/views/admin/ResourcesView.vue')
 const SlotsView = () => import('@/views/admin/SlotsView.vue')
 const UsersView = () => import('@/views/admin/UsersView.vue')
 const ReconciliationView = () => import('@/views/admin/ReconciliationView.vue')
-const AdminQueriesView = () => import('@/views/admin/AdminQueriesView.vue')
+const AppointmentQueryView = () => import('@/views/admin/AppointmentQueryView.vue')
 const MessagesView = () => import('@/views/user/MessagesView.vue')
+const AdminQueriesView = () => import('@/views/admin/AdminQueriesView.vue')
+const OperationLogsView = () => import('@/views/admin/OperationLogsView.vue')
 
 export const portals: { role: Role; path: string; title: string; subtitle: string }[] = [
   { role: 'USER', path: '/user', title: '我的服务', subtitle: '查找网点、查看预约与排队进度' },
@@ -46,8 +48,9 @@ const routes: RouteRecordRaw[] = [
     { path: 'slots', name: 'admin-slots', component: SlotsView },
     { path: 'users', name: 'admin-users', component: UsersView },
     { path: 'reconciliations', name: 'admin-reconciliations', component: ReconciliationView },
-    { path: 'appointments', name: 'admin-appointments', component: AdminQueriesView, props: { kind: 'appointments' } },
-    { path: 'operation-logs', name: 'admin-operation-logs', component: AdminQueriesView, props: { kind: 'operation-logs' } },
+    { path: 'appointments', name: 'admin-appointments', component: AppointmentQueryView },
+    { path: 'operation-logs', name: 'admin-operation-logs', component: OperationLogsView },
+    { path: 'audit', name: 'admin-audit', component: AdminQueriesView, props: { kind: 'operation-logs' } },
     { path: 'reconciliation-history', name: 'admin-reconciliation-history', component: AdminQueriesView, props: { kind: 'reconciliations' } },
     { path: 'statistics', name: 'admin-statistics', component: AdminQueriesView, props: { kind: 'statistics' } },
     { path: 'syncs', name: 'admin-syncs', component: AdminQueriesView, props: { kind: 'syncs' } },

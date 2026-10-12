@@ -1,6 +1,10 @@
-export interface UserSlot { configuration: { slotId: string; outletId: string; itemId: string; serviceDate: string; startTime: string; endTime: string; releaseAt: string; closeAt: string; totalQuota: number }; remaining: number | null; availability: 'NOT_RELEASED' | 'AVAILABLE' | 'FULL' | 'CLOSED' | 'UNKNOWN' }
 export interface Outlet { id: string; code: string; name: string; address: string; maskedContactPhone: string | null; status: 'ENABLED' | 'DISABLED' }
 export interface ServiceItem { id: string; code: string; name: string; description: string | null; defaultDurationMinutes: number; status: 'ENABLED' | 'DISABLED' }
+export interface UserSlot {
+  id: string; outletId: string; itemId: string; serviceDate: string; startTime: string; endTime: string
+  totalQuota: number; releaseAt: string; closeAt: string; bookingStatus: 'BOOKABLE' | 'UPCOMING' | 'SUSPENDED' | 'CLOSED'
+  remaining?: number | null
+}
 
 export type AppointmentStatus = 'PENDING_CONFIRM' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED' | 'CHECKED_IN' | 'SERVING' | 'COMPLETED' | 'NO_SHOW'
 export type ReservationStatus = 'CREATING' | 'FAILED' | AppointmentStatus

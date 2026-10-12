@@ -3,7 +3,8 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminApi } from '@/api/admin'
 import StatePanel from '@/components/StatePanel.vue'
-import type { AdminSlot, SlotBatchResult, SlotStatus } from '@/types/admin'
+import AdminResourceSelect from '@/components/AdminResourceSelect.vue'
+import type { AdminResource, AdminSlot, SlotBatchResult, SlotStatus } from '@/types/admin'
 import { adminErrorMessage } from '@/utils/adminError'
 import { chinaInstant, chinaLocal, dayCount, validateSlotTimes } from '@/utils/slotForm'
 
@@ -14,6 +15,9 @@ const calendarDate = ref(new Date())
 const loading = ref(false), loadError = ref(false), busy = ref(false)
 const dialog = ref(false), mode = ref<'single' | 'batch'>('single'), editId = ref(''), formError = ref('')
 const batchResult = ref<SlotBatchResult | null>(null)
+const formOutlet = ref<AdminResource | null>(null), formItem = ref<AdminResource | null>(null)
+const outletName = () => formOutlet.value?.name || '未选择网点'
+const itemName = () => formItem.value?.name || '未选择事项'
 const form = reactive({ outletId: '', itemId: '', serviceDate: '', endDate: '', startTime: '09:00', endTime: '09:30', totalQuota: 20, releaseAt: '', releaseDaysBefore: 7, releaseTime: '08:00', checkInStart: '08:30', checkInEnd: '09:30', status: 'DRAFT' as 'DRAFT' | 'SCHEDULED', version: 0 })
 const transitions: Record<SlotStatus, SlotStatus[]> = { DRAFT: ['SCHEDULED', 'OPEN', 'CLOSED'], SCHEDULED: ['OPEN', 'SUSPENDED', 'CLOSED'], OPEN: ['SUSPENDED', 'CLOSED'], SUSPENDED: ['SCHEDULED', 'OPEN', 'CLOSED'], CLOSED: [] }
 const idRule = /^[1-9][0-9]*$/
@@ -38,7 +42,7 @@ async function edit(row: AdminSlot) {
   } catch (error) { ElMessage.error(adminErrorMessage(error)); await load() }
 }
 function validate(): string {
-  if (!idRule.test(form.outletId) || !idRule.test(form.itemId)) return '请输入有效的网点 ID 和事项 ID。'
+  if (!idRule.test(form.outletId) || !idRule.test(form.itemId)) return '请选择网点和事项。'
   if (!form.serviceDate) return '请选择服务日期。'
   const timeError = validateSlotTimes(form.startTime, form.endTime, form.checkInStart, form.checkInEnd)
   if (timeError) return timeError
@@ -63,7 +67,7 @@ async function save() {
   busy.value = true
   if (mode.value === 'batch') {
     const count = dayCount(form.serviceDate, form.endDate)
-    try { await ElMessageBox.confirm(`将为网点 ${form.outletId}、事项 ${form.itemId}，在 ${form.serviceDate} 至 ${form.endDate} 的 ${count} 个服务日生成 ${form.startTime}–${form.endTime} 时段；完全重复会跳过，冲突会逐日返回。确认提交？`, '确认批量生成', { type: 'warning' }) }
+    try { await ElMessageBox.confirm(`将为“${outletName()}”的“${itemName()}”，在 ${form.serviceDate} 至 ${form.endDate} 的 ${count} 个服务日生成 ${form.startTime}–${form.endTime} 时段；完全重复会跳过，冲突会逐日返回。确认提交？`, '确认批量生成', { type: 'warning' }) }
     catch { busy.value = false; return }
   }
   try {
@@ -106,12 +110,18 @@ onMounted(() => { void load() })
   </div>
   <div class="content-card admin-card">
     <div class="admin-toolbar">
-      <el-input
+      <AdminResourceSelect
         v-model="outletId"
-        placeholder="网点 ID"
-      /><el-input
+        kind="outlets"
+        placeholder="全部网点，可搜索名称或编码"
+        :enabled-only="false"
+        class="slot-resource-filter"
+      /><AdminResourceSelect
         v-model="itemId"
-        placeholder="事项 ID"
+        kind="items"
+        placeholder="全部事项，可搜索名称或编码"
+        :enabled-only="false"
+        class="slot-resource-filter"
       /><input
         v-model="date"
         type="date"
@@ -271,15 +281,19 @@ onMounted(() => { void load() })
       class="admin-form"
       @submit.prevent="save"
     >
-      <label>网点 ID<input
+      <label for="slot-outlet">网点<AdminResourceSelect
         v-model="form.outletId"
-        inputmode="numeric"
-        required
-      ></label><label>事项 ID<input
+        kind="outlets"
+        input-id="slot-outlet"
+        :disabled="busy"
+        @selected="formOutlet = $event"
+      /></label><label for="slot-item">事项<AdminResourceSelect
         v-model="form.itemId"
-        inputmode="numeric"
-        required
-      ></label><label>{{ mode === 'batch' ? '开始日期' : '服务日期' }}<input
+        kind="items"
+        input-id="slot-item"
+        :disabled="busy"
+        @selected="formItem = $event"
+      /></label><label>{{ mode === 'batch' ? '开始日期' : '服务日期' }}<input
         v-model="form.serviceDate"
         type="date"
         required
@@ -333,7 +347,7 @@ onMounted(() => { void load() })
         v-if="mode === 'batch' && form.serviceDate && form.endDate"
         class="admin-warning"
       >
-        影响网点 {{ form.outletId || '未填' }}、事项 {{ form.itemId || '未填' }}，{{ form.serviceDate }} 至 {{ form.endDate }} 共 {{ dayCount(form.serviceDate, form.endDate) }} 个服务日，每日 {{ form.startTime }}–{{ form.endTime }}，额度 {{ form.totalQuota }}；最终逐项结果以服务端为准。
+        影响网点“{{ outletName() }}”、事项“{{ itemName() }}”，{{ form.serviceDate }} 至 {{ form.endDate }} 共 {{ dayCount(form.serviceDate, form.endDate) }} 个服务日，每日 {{ form.startTime }}–{{ form.endTime }}，额度 {{ form.totalQuota }}；最终逐项结果以服务端为准。
       </p><p
         v-if="formError"
         class="admin-error"
@@ -354,3 +368,8 @@ onMounted(() => { void load() })
     </form>
   </el-dialog>
 </template>
+
+<style scoped>
+.slot-resource-filter { width: 210px; }
+@media (max-width: 760px) { .slot-resource-filter { width: 100%; } }
+</style>

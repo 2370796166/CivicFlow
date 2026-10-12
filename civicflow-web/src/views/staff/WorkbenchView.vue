@@ -6,6 +6,7 @@ import StatePanel from '@/components/StatePanel.vue'
 import type { ApiError } from '@/types/api'
 import type { CurrentWorkSession, StaffAction, StaffScope } from '@/types/staff'
 import { actionLabel, actionSignature, availableActions, confirmText } from '@/utils/staffFlow'
+import { bookingErrorMessage } from '@/utils/bookingError'
 
 const scopes = ref<StaffScope[]>([])
 const outletId = ref('')
@@ -18,6 +19,7 @@ const currentError = ref(false)
 const uncertain = ref(false)
 const busy = ref<StaffAction | null>(null)
 const notice = ref('')
+const scanToken = ref(''), scanBusy = ref(false), scanNotice = ref('')
 const keys = new Map<StaffAction, { signature: string; key: string }>()
 let timer: ReturnType<typeof setTimeout> | undefined
 let active = true
@@ -28,7 +30,7 @@ const windows = computed(() => scopes.value.filter((scope) => scope.outletId ===
 const selected = computed(() => windows.value.find((scope) => scope.windowId === windowId.value) ?? null)
 const actions = computed(() => availableActions(current.value))
 const ticket = computed(() => current.value?.currentTicket ?? null)
-const controlsLocked = computed(() => !!busy.value || uncertain.value || currentError.value || refreshing.value)
+const controlsLocked = computed(() => !!busy.value || scanBusy.value || uncertain.value || currentError.value || refreshing.value)
 const configured = Number(import.meta.env.VITE_STAFF_POLL_MS)
 const pollMs = Number.isFinite(configured) && configured >= 3000 && configured <= 10000 ? configured : 4000
 
@@ -70,7 +72,21 @@ async function refreshCurrent(force = false): Promise<boolean> {
     schedule()
   }
 }
+async function checkIn() {
+  if (!outletId.value || !scanToken.value.trim() || scanBusy.value || busy.value) return
+  const token = scanToken.value.trim()
+  if (token.length > 4096) { scanNotice.value = '二维码内容过长，请重新扫描。'; return }
+  scanBusy.value = true; scanNotice.value = ''
+  try {
+    const result = await staffApi.checkIn(outletId.value, token)
+    if (!active) return
+    scanNotice.value = `签到成功，排队号 ${result.ticketNo}。`
+    await refreshCurrent(true)
+  } catch (error) { if (active) scanNotice.value = bookingErrorMessage((error as ApiError).code, '签到结果暂不确定，请重新扫描核实。') }
+  finally { scanToken.value = ''; scanBusy.value = false }
+}
 function selectOutlet() {
+  scanToken.value = ''; scanNotice.value = ''
   windowId.value = windows.value[0]?.windowId ?? ''
   selectWindow()
 }
@@ -165,7 +181,7 @@ onUnmounted(() => { active = false; generation += 1; clearTimeout(timer); docume
           <label for="staff-outlet">授权网点</label><select
             id="staff-outlet"
             v-model="outletId"
-            :disabled="!!current || !!busy"
+            :disabled="!!current || !!busy || scanBusy"
             @change="selectOutlet"
           >
             <option
@@ -181,7 +197,7 @@ onUnmounted(() => { active = false; generation += 1; clearTimeout(timer); docume
           <label for="staff-window">工作窗口</label><select
             id="staff-window"
             v-model="windowId"
-            :disabled="!!current || !!busy"
+            :disabled="!!current || !!busy || scanBusy"
             @change="selectWindow"
           >
             <option
@@ -197,6 +213,35 @@ onUnmounted(() => { active = false; generation += 1; clearTimeout(timer); docume
           <span>可办事项</span><strong>{{ selected?.items.map((item) => item.name).join('、') || '无' }}</strong>
         </div>
       </section>
+
+      <form
+        class="staff-checkin admin-form"
+        @submit.prevent="checkIn"
+      >
+        <label for="check-in-code">现场签到<input
+          id="check-in-code"
+          v-model="scanToken"
+          type="password"
+          autocomplete="off"
+          maxlength="4096"
+          placeholder="使用扫码枪输入或粘贴签到二维码内容"
+          :disabled="scanBusy || !!busy"
+        ></label>
+        <el-button
+          native-type="submit"
+          type="primary"
+          :loading="scanBusy"
+          :disabled="!scanToken.trim() || !!busy"
+        >
+          确认签到
+        </el-button>
+        <p
+          v-if="scanNotice"
+          role="status"
+        >
+          {{ scanNotice }}
+        </p>
+      </form>
 
       <div
         v-if="notice"
@@ -263,16 +308,8 @@ onUnmounted(() => { active = false; generation += 1; clearTimeout(timer); docume
         </button>
       </section>
 
-      <section
-        class="staff-snapshot"
-        aria-label="队列概览"
-      >
-        <div><span>等待人数</span><strong>—</strong><small>窗口接口暂未提供</small></div>
-        <div><span>已叫号列表</span><strong>—</strong><small>仅可查看当前票</small></div>
-        <div><span>过号列表</span><strong>—</strong><small>窗口接口暂未提供</small></div>
-      </section>
       <p class="staff-contract-note">
-        当前服务仅支持结束工作，没有暂停/恢复接口。结束前须先处理当前已叫号或办理中的票。状态约每 {{ pollMs / 1000 }} 秒刷新一次；页面隐藏时降低频率。
+        工作台显示当前办理票。结束工作前，请先处理当前已叫号或正在办理的票。状态约每 {{ pollMs / 1000 }} 秒更新。
       </p>
     </template>
   </div>

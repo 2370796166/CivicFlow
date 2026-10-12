@@ -1,4 +1,15 @@
 spring:
+  task:
+    scheduling:
+      pool:
+        size: 4
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 1000
+            readTimeout: 3000
   application:
     name: civicflow-appointment
   profiles:

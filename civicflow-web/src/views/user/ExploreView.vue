@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import StatePanel from '@/components/StatePanel.vue'
 import { userApi } from '@/api/user'
 import type { Outlet, ServiceItem, UserSlot } from '@/types/user'
+import type { ApiError } from '@/types/api'
+import { bookingErrorMessage } from '@/utils/bookingError'
 
 const route = useRoute()
 const router = useRouter()
@@ -13,43 +15,6 @@ const outlet = ref<Outlet | null>(null)
 const items = ref<ServiceItem[]>([])
 const selectedItem = ref('')
 const selectedDate = ref('')
-const slots = ref<UserSlot[]>([])
-const slotsLoading = ref(false)
-const slotsError = ref(false)
-const reserving = ref('')
-const now = ref(Date.now())
-const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
-const slotLabels: Record<UserSlot['availability'], string> = { NOT_RELEASED: '尚未放号', AVAILABLE: '可预约', FULL: '已约满', CLOSED: '已停售', UNKNOWN: '余量待核实' }
-const selection = computed(() => outletId.value + ':' + selectedItem.value + ':' + selectedDate.value)
-let slotGeneration = 0
-let refreshTimer: ReturnType<typeof setInterval> | undefined
-async function loadSlots() {
-  const generation = ++slotGeneration
-  if (!outletId.value || !selectedItem.value || !selectedDate.value) { slots.value = []; return }
-  slotsLoading.value = true; slotsError.value = false
-  try { const result = await userApi.slots(outletId.value, selectedItem.value, selectedDate.value); if (generation === slotGeneration) slots.value = result }
-  catch { if (generation === slotGeneration) slotsError.value = true }
-  finally { if (generation === slotGeneration) slotsLoading.value = false }
-}
-function canReserve(slot: UserSlot) { return ['AVAILABLE', 'UNKNOWN'].includes(slot.availability) && Date.parse(slot.configuration.releaseAt) <= now.value && Date.parse(slot.configuration.closeAt) > now.value }
-async function reserve(slot: UserSlot) {
-  if (reserving.value || !canReserve(slot)) return
-  const id = slot.configuration.slotId
-  const storageKey = 'civicflow-reservation-key:' + id
-  const key = sessionStorage.getItem(storageKey) ?? crypto.randomUUID()
-  sessionStorage.setItem(storageKey, key)
-  reserving.value = id
-  try {
-    const result = await userApi.reserve(id, key)
-    sessionStorage.removeItem(storageKey)
-    await router.push('/user/reservations/' + result.reservationId)
-  } catch (error) {
-    const status = (error as { status?: number }).status
-    // Only a definite business rejection permits a new intent. Unknown outcomes retain the key.
-    if (status === 400 || status === 409 || status === 422) sessionStorage.removeItem(storageKey)
-    await loadSlots()
-  } finally { reserving.value = '' }
-}
 const page = ref(1)
 const total = ref(0)
 const itemPage = ref(1)
@@ -57,34 +22,90 @@ const itemTotal = ref(0)
 const loading = ref(false)
 const error = ref(false)
 const outletId = ref(String(route.params.outletId ?? ''))
-watch(selection, () => { slots.value = []; void loadSlots() })
+const slots = ref<UserSlot[]>([])
+const slotPage = ref(1), slotTotal = ref(0), slotsLoading = ref(false), slotsError = ref(false)
+const reserving = ref(''), reservationNotice = ref('')
+const requestKeys = new Map<string, string>()
+const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+const maxDate = ref(new Date(Date.parse(`${today}T00:00:00Z`) + 30 * 86400000).toISOString().slice(0, 10))
+const closedDates = ref<string[]>([])
+async function loadRules() {
+  try { const rules = await userApi.bookingRules(); maxDate.value = new Date(Date.parse(`${today}T00:00:00Z`) + rules.advanceDays * 86400000).toISOString().slice(0, 10); closedDates.value = rules.closedDates } catch { /* Use the conservative default until the rule service recovers. */ }
+}
+const slotStatus = { BOOKABLE: '预约此时段', UPCOMING: '尚未放号', SUSPENDED: '暂停预约', CLOSED: '预约已截止' }
+let slotGeneration = 0, contextGeneration = 0, disposed = false
+let slotTimer: ReturnType<typeof setTimeout> | undefined
+
+async function loadSlots() {
+  clearTimeout(slotTimer)
+  const generation = ++slotGeneration
+  if (!outletId.value || !selectedItem.value || !selectedDate.value) return
+  if (closedDates.value.includes(selectedDate.value)) { slots.value = []; slotTotal.value = 0; return }
+  slotsLoading.value = true; slotsError.value = false
+  try {
+    const result = await userApi.slots(outletId.value, selectedItem.value, selectedDate.value, slotPage.value)
+    if (disposed || generation !== slotGeneration) return
+    slots.value = result.items; slotTotal.value = result.total
+  } catch { if (!disposed && generation === slotGeneration) slotsError.value = true }
+  finally {
+    if (!disposed && generation === slotGeneration) {
+      slotsLoading.value = false
+      if (!document.hidden) slotTimer = setTimeout(() => { void loadSlots() }, 10000)
+    }
+  }
+}
+async function reserve(slot: UserSlot) {
+  if (reserving.value || slotsLoading.value || slot.bookingStatus !== 'BOOKABLE' || slot.remaining === 0) return
+  reserving.value = slot.id; reservationNotice.value = ''
+  const key = requestKeys.get(slot.id) ?? crypto.randomUUID()
+  requestKeys.set(slot.id, key)
+  try {
+    const result = await userApi.reserve(slot.id, key)
+    await router.push(`/user/reservations/${result.reservationId}`)
+  } catch (error) {
+    const failure = error as ApiError
+    if (failure.status !== undefined && failure.status >= 400 && failure.status < 500 && ![408, 429].includes(failure.status)) requestKeys.delete(slot.id)
+    reservationNotice.value = bookingErrorMessage(failure.code,
+      failure.status === undefined || failure.status >= 500 ? '请求结果暂不确定。再次点击此时段会核实同一请求，也可到“我的预约”查看。'
+      : '号源状态已变化，请刷新后重新选择。')
+    void loadSlots()
+  } finally { reserving.value = '' }
+}
+function visibilityChanged() {
+  clearTimeout(slotTimer)
+  if (!document.hidden && selectedItem.value && selectedDate.value) void loadSlots()
+}
+watch([selectedItem, selectedDate], () => {
+  slotGeneration += 1; clearTimeout(slotTimer); slots.value = []; slotTotal.value = 0
+  slotsLoading.value = false; slotsError.value = false; slotPage.value = 1; reservationNotice.value = ''
+  if (selectedItem.value && selectedDate.value) void loadSlots()
+})
 
 async function loadOutlets() {
+  const generation = ++contextGeneration
   loading.value = true; error.value = false
-  try { const result = await userApi.outlets(keyword.value.trim(), page.value); outlets.value = result.items; total.value = result.total }
-  catch { error.value = true }
-  finally { loading.value = false }
+  try { const result = await userApi.outlets(keyword.value.trim(), page.value); if (!disposed && generation === contextGeneration) { outlets.value = result.items; total.value = result.total } }
+  catch { if (!disposed && generation === contextGeneration) error.value = true }
+  finally { if (!disposed && generation === contextGeneration) loading.value = false }
 }
 async function loadOutlet() {
   if (!outletId.value) return loadOutlets()
+  const generation = ++contextGeneration
   loading.value = true; error.value = false
   try {
-    outlet.value = await userApi.outlet(outletId.value)
-    const result = await userApi.items(outletId.value, itemPage.value)
-    items.value = result.items; itemTotal.value = result.total
-  } catch { error.value = true }
-  finally { loading.value = false }
+    const id = outletId.value
+    const [nextOutlet, result] = await Promise.all([userApi.outlet(id), userApi.items(id, itemPage.value)])
+    if (!disposed && generation === contextGeneration) { outlet.value = nextOutlet; items.value = result.items; itemTotal.value = result.total }
+  } catch { if (!disposed && generation === contextGeneration) error.value = true }
+  finally { if (!disposed && generation === contextGeneration) loading.value = false }
 }
 function search() { page.value = 1; void loadOutlets() }
 watch(() => route.params.outletId, (id) => {
   outletId.value = String(id ?? ''); selectedItem.value = ''; selectedDate.value = ''; outlet.value = null; itemPage.value = 1
   void (outletId.value ? loadOutlet() : loadOutlets())
 })
-onMounted(() => {
-  void (outletId.value ? loadOutlet() : loadOutlets())
-  refreshTimer = setInterval(() => { now.value = Date.now(); if (!document.hidden && selectedItem.value && selectedDate.value && !slotsLoading.value && !reserving.value) void loadSlots() }, 10000)
-})
-onUnmounted(() => { ++slotGeneration; clearInterval(refreshTimer) })
+onMounted(() => { void loadRules(); document.addEventListener('visibilitychange', visibilityChanged); void (outletId.value ? loadOutlet() : loadOutlets()) })
+onUnmounted(() => { disposed = true; slotGeneration += 1; contextGeneration += 1; clearTimeout(slotTimer); document.removeEventListener('visibilitychange', visibilityChanged) })
 </script>
 
 <template>
@@ -187,6 +208,7 @@ onUnmounted(() => { ++slotGeneration; clearInterval(refreshTimer) })
           type="radio"
           name="item"
           :value="item.id"
+          :disabled="!!reserving"
         ><span><strong>{{ item.name }}</strong><small>{{ item.description || `预计办理 ${item.defaultDurationMinutes} 分钟` }}</small></span></label>
       </div>
       <el-pagination
@@ -206,62 +228,87 @@ onUnmounted(() => { ++slotGeneration; clearInterval(refreshTimer) })
           v-model="selectedDate"
           type="date"
           :min="today"
+          :max="maxDate"
+          :disabled="!!reserving"
         >
       </div>
       <section
         v-if="selectedItem && selectedDate"
-        aria-label="可预约时段"
+        aria-label="预约时段"
       >
-        <div class="action-row">
-          <h3>预约时段</h3><el-button
+        <div class="slot-heading">
+          <h3>选择预约时段</h3><el-button
             :loading="slotsLoading"
+            :disabled="!!reserving"
             @click="loadSlots"
           >
             刷新号源
           </el-button>
         </div>
+        <p class="muted">
+          名额以提交预约时的结果为准。预约受理后，请在五分钟内确认。
+        </p>
         <StatePanel
           v-if="slotsLoading && !slots.length"
           state="loading"
+          title="正在查询号源"
         />
         <StatePanel
           v-else-if="slotsError"
           state="error"
-          title="号源查询失败"
+          title="号源读取失败"
+          description="请刷新号源后重试。"
           @retry="loadSlots"
         />
         <StatePanel
           v-else-if="!slots.length"
           state="empty"
-          title="当天暂无号源"
-          description="请选择其他日期。"
+          title="当天暂无预约时段"
+          description="请选择其他日期，或稍后再次查询。"
         />
         <div
           v-else
-          class="choice-list"
+          class="booking-slots"
         >
-          <div
+          <article
             v-for="slot in slots"
-            :key="slot.configuration.slotId"
-            class="choice-row"
+            :key="slot.id"
+            class="booking-slot"
+            :class="{ 'booking-slot-open': slot.bookingStatus === 'BOOKABLE' }"
           >
-            <div>
-              <strong>{{ slot.configuration.startTime.slice(0, 5) }}–{{ slot.configuration.endTime.slice(0, 5) }}</strong>
-              <p>{{ slotLabels[slot.availability] }}<span v-if="slot.remaining !== null"> · 剩余 {{ slot.remaining }}</span></p>
-              <small v-if="slot.availability === 'NOT_RELEASED'">放号时间：{{ new Date(slot.configuration.releaseAt).toLocaleString() }}</small>
-            </div>
+            <strong>{{ slot.startTime.slice(0, 5) }}–{{ slot.endTime.slice(0, 5) }}</strong>
+            <span>时段总名额 {{ slot.totalQuota }}<span v-if="slot.remaining !== undefined"> · {{ slot.remaining === null ? '余量待核实' : '剩余 ' + slot.remaining }}</span></span>
+            <small v-if="slot.bookingStatus === 'UPCOMING'">{{ new Date(slot.releaseAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false }) }} 放号</small>
             <el-button
-              type="primary"
-              :disabled="!canReserve(slot) || !!reserving"
-              :loading="reserving === slot.configuration.slotId"
+              :type="slot.bookingStatus === 'BOOKABLE' ? 'primary' : 'default'"
+              :loading="reserving === slot.id"
+              :disabled="!!reserving || slotsLoading || slot.bookingStatus !== 'BOOKABLE' || slot.remaining === 0"
               @click="reserve(slot)"
             >
-              预约
+              {{ slot.remaining === 0 ? '已约满' : slotStatus[slot.bookingStatus] }}
             </el-button>
-          </div>
-        </div><p class="muted">
-          余量会动态变化，预约结果以提交后返回的状态为准。网络中断后重试会继续核实同一次预约。
-        </p>
+          </article>
+        </div>
+        <el-pagination
+          v-if="slotTotal > 20"
+          v-model:current-page="slotPage"
+          layout="prev, pager, next"
+          :total="slotTotal"
+          :disabled="!!reserving"
+          @current-change="loadSlots"
+        />
+        <div
+          v-if="reservationNotice"
+          class="notice-box"
+          role="alert"
+        >
+          <p>{{ reservationNotice }}</p><RouterLink
+            to="/user/appointments"
+            class="link-text"
+          >
+            查看我的预约
+          </RouterLink>
+        </div>
       </section>
     </template>
   </div>

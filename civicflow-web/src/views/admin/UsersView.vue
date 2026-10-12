@@ -11,7 +11,8 @@ const rows = ref<AdminUser[]>([]), page = ref(1), total = ref(0)
 const keyword = ref(''), status = ref('')
 const loading = ref(false), loadError = ref(false), busy = ref(false)
 const dialog = ref(false), formError = ref('')
-const form = reactive({ username: '', mobile: '', password: '', displayName: '', roles: ['USER'] as Role[] })
+const form = reactive({ username: '', mobile: '', password: '', displayName: '', role: 'USER' as Role })
+const roleNames: Record<Role, string> = { USER: '普通用户', STAFF: '窗口人员', ADMIN: '管理员' }
 const rolesDialog = ref(false), target = ref<AdminUser | null>(null), selectedRoles = ref<Role[]>([])
 async function load() {
   loading.value = true; loadError.value = false
@@ -20,24 +21,24 @@ async function load() {
   finally { loading.value = false }
 }
 function search() { page.value = 1; void load() }
-function create() { Object.assign(form, { username: '', mobile: '', password: '', displayName: '', roles: ['USER'] }); formError.value = ''; dialog.value = true }
+function create() { Object.assign(form, { username: '', mobile: '', password: '', displayName: '', role: 'USER' }); formError.value = ''; dialog.value = true }
 function validate(): string {
   if (!/^[A-Za-z][A-Za-z0-9._-]{2,63}$/.test(form.username)) return '用户名需为 3–64 位，首位为字母。'
   if (form.mobile && !/^(?:\+?86)?1[3-9]\d{9}$/.test(form.mobile)) return '手机号格式不正确。'
   if (form.password.length < 8 || form.password.length > 72) return '密码需为 8–72 位。'
   if (!form.displayName.trim() || form.displayName.length > 64) return '显示名称不能为空且最多 64 字。'
-  if (!form.roles.length) return '至少选择一个角色。'
+  if (!['USER', 'STAFF', 'ADMIN'].includes(form.role)) return '请选择一个角色。'
   return ''
 }
 async function save() {
   formError.value = validate()
   if (formError.value || busy.value) return
   busy.value = true
-  if (form.roles.some((role) => role === 'STAFF' || role === 'ADMIN')) {
-    try { await ElMessageBox.confirm(`将创建拥有 ${form.roles.join('、')} 角色的账号“${form.username}”。确认授权？`, '确认创建高权限账号', { type: 'warning' }) }
+  if (form.role === 'STAFF' || form.role === 'ADMIN') {
+    try { await ElMessageBox.confirm(`将创建“${roleNames[form.role]}”账号“${form.username}”。确认授权？`, '确认创建高权限账号', { type: 'warning' }) }
     catch { busy.value = false; return }
   }
-  try { await adminApi.createUser({ username: form.username, mobile: form.mobile || null, password: form.password, displayName: form.displayName.trim(), roles: form.roles }); form.password = ''; dialog.value = false; await load() }
+  try { await adminApi.createUser({ username: form.username, mobile: form.mobile || null, password: form.password, displayName: form.displayName.trim(), roles: [form.role] }); form.password = ''; dialog.value = false; await load() }
   catch (error) { formError.value = adminErrorMessage(error); await load() }
   finally { form.password = ''; busy.value = false }
 }
@@ -198,15 +199,25 @@ onMounted(() => { void load() })
         minlength="8"
         maxlength="72"
         required
-      ></label><span>角色</span><el-checkbox-group v-model="form.roles">
-        <el-checkbox value="USER">
-          普通用户
-        </el-checkbox><el-checkbox value="STAFF">
-          窗口人员
-        </el-checkbox><el-checkbox value="ADMIN">
-          管理员
-        </el-checkbox>
-      </el-checkbox-group><p
+      ></label><fieldset
+        class="new-user-roles"
+        :disabled="busy"
+      >
+        <legend>角色（单选）</legend>
+        <label
+          v-for="(name, role) in roleNames"
+          :key="role"
+          class="new-user-role"
+        >
+          <input
+            v-model="form.role"
+            type="radio"
+            name="new-user-role"
+            :value="role"
+            required
+          >{{ name }}
+        </label>
+      </fieldset><p
         v-if="formError"
         role="alert"
         class="admin-error"
@@ -252,3 +263,12 @@ onMounted(() => { void load() })
     </div>
   </el-dialog>
 </template>
+
+<style scoped>
+.new-user-roles { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; }
+.new-user-roles legend { margin-bottom: 8px; font-size: .88rem; font-weight: 700; color: var(--ink); }
+.new-user-roles .new-user-role { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 7px; cursor: pointer; }
+.new-user-role input { width: auto; min-height: 0; margin: 0; padding: 0; border: 0; accent-color: var(--teal); }
+.new-user-role:has(input:checked) { border-color: var(--teal); background: var(--teal-light); }
+.new-user-roles:disabled .new-user-role { cursor: default; }
+</style>

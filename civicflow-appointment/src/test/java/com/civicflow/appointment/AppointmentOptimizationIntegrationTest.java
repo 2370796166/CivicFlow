@@ -77,11 +77,17 @@ class AppointmentOptimizationIntegrationTest {
 
     @Test
     void administrativeQueriesArePagedAndRoleProtected() throws Exception {
-        mvc.perform(get("/api/v1/admin/appointments").with(user(7, "USER")))
+        mvc.perform(get("/api/v1/admin/operations/appointments").with(user(7, "USER")))
                 .andExpect(status().isForbidden());
-        mvc.perform(get("/api/v1/admin/appointments").param("size", "101").with(user(1, "ADMIN")))
+        mvc.perform(
+                        get("/api/v1/admin/operations/appointments")
+                                .param("size", "101")
+                                .with(user(1, "ADMIN")))
                 .andExpect(status().isBadRequest());
-        mvc.perform(get("/api/v1/admin/appointments").param("userId", "7").with(user(1, "ADMIN")))
+        mvc.perform(
+                        get("/api/v1/admin/operations/appointments")
+                                .param("userId", "7")
+                                .with(user(1, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(1))
                 .andExpect(jsonPath("$.data.items[0].appointmentId").value("101"));

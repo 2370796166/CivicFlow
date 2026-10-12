@@ -16,6 +16,18 @@ public interface ResourceSlotMapper extends BaseMapper<ResourceSlotEntity> {
             @Param("itemId") long itemId,
             @Param("date") LocalDate date);
 
+    List<ResourceSlotEntity> selectUserPage(
+            @Param("outletId") long outletId,
+            @Param("itemId") long itemId,
+            @Param("serviceDate") LocalDate serviceDate,
+            @Param("offset") long offset,
+            @Param("size") int size);
+
+    long countUserPage(
+            @Param("outletId") long outletId,
+            @Param("itemId") long itemId,
+            @Param("serviceDate") LocalDate serviceDate);
+
     long countFutureByOutlet(@Param("outletId") long outletId, @Param("today") LocalDate today);
 
     long countFutureByItem(@Param("itemId") long itemId, @Param("today") LocalDate today);

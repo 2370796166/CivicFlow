@@ -44,7 +44,8 @@ public class QueueSecurityConfig {
                         requests ->
                                 requests.requestMatchers("/actuator/health", "/actuator/info")
                                         .permitAll()
-                                        .requestMatchers("/actuator/prometheus").hasRole("ADMIN")
+                                        .requestMatchers("/actuator/prometheus")
+                                        .hasRole("ADMIN")
                                         .anyRequest()
                                         .authenticated())
                 .oauth2ResourceServer(

@@ -8,19 +8,33 @@ const callNext = vi.fn()
 const change = vi.fn()
 const confirm = vi.fn()
 const warning = vi.fn()
-vi.mock('@/api/staff', () => ({ staffApi: { scopes: (...args: unknown[]) => scopes(...args), current: (...args: unknown[]) => current(...args), callNext: (...args: unknown[]) => callNext(...args), change: (...args: unknown[]) => change(...args) } }))
+const checkIn = vi.fn()
+vi.mock('@/api/staff', () => ({ staffApi: { scopes: (...args: unknown[]) => scopes(...args), current: (...args: unknown[]) => current(...args), callNext: (...args: unknown[]) => callNext(...args), change: (...args: unknown[]) => change(...args), checkIn: (...args: unknown[]) => checkIn(...args) } }))
 vi.mock('element-plus', () => ({ ElMessageBox: { confirm: (...args: unknown[]) => confirm(...args) }, ElMessage: { warning: (...args: unknown[]) => warning(...args) } }))
 
 const scope = { outletId: 'o1', outletCode: 'EAST', outletName: '东城中心', windowId: 'w1', windowCode: '01', windowName: '一号窗口', items: [{ id: 'i1', code: 'H', name: '户籍' }] }
 const session = { id: 's1', outletId: 'o1', windowId: 'w1', status: 'ACTIVE', version: 0, startedAt: '', endedAt: null }
 const ticket = { id: 't1', appointmentId: 'a1', ticketNo: 'A001', status: 'CALLED', checkedInAt: '', calledWindowId: 'w1', workSessionId: 's1', callCount: 1, version: 0 }
-const stubs = { StatePanel: { template: '<div />' } }
+const stubs = { StatePanel: { template: '<div />' }, ElButton: { template: '<button @click="$emit(\'click\')"><slot /></button>' } }
 
 function button(wrapper: ReturnType<typeof mount>, label: string) { return wrapper.findAll('button').find((item) => item.text().includes(label))! }
 
 describe('WorkbenchView', () => {
-  beforeEach(() => { scopes.mockResolvedValue([scope]); current.mockReset(); callNext.mockReset(); change.mockReset(); confirm.mockReset(); warning.mockReset() })
+  beforeEach(() => { scopes.mockResolvedValue([scope]); current.mockReset(); callNext.mockReset(); change.mockReset(); confirm.mockReset(); warning.mockReset(); checkIn.mockReset() })
   afterEach(() => { vi.restoreAllMocks() })
+  it('accepts a scanner token once and clears it after creating the queue ticket', async () => {
+    current.mockResolvedValue({ session, currentTicket: null })
+    let finish!: (result: unknown) => void
+    checkIn.mockImplementation(() => new Promise(resolve => { finish = resolve }))
+    const wrapper = mount(WorkbenchView, { global: { stubs } }); await flushPromises()
+    await wrapper.find('#check-in-code').setValue('QR_PRIVATE_CANARY')
+    await wrapper.find('form').trigger('submit'); await wrapper.find('form').trigger('submit')
+    expect(checkIn).toHaveBeenCalledTimes(1); expect(checkIn).toHaveBeenCalledWith('o1', 'QR_PRIVATE_CANARY')
+    finish({ ticketNo: 'A001' }); await flushPromises()
+    expect((wrapper.find('#check-in-code').element as HTMLInputElement).value).toBe('')
+    expect(wrapper.text()).toContain('签到成功，排队号 A001')
+    wrapper.unmount()
+  })
 
   it('locks all actions while the confirmation is open', async () => {
     current.mockResolvedValue({ session, currentTicket: null })

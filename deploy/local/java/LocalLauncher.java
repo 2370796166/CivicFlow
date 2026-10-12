@@ -12,7 +12,7 @@ public final class LocalLauncher {
         if (!java.util.Set.of("up", "prepare", "stop", "status").contains(action)) {
             throw new IllegalArgumentException("Expected up, prepare, stop or status");
         }
-        Path script = Path.of("scripts", "dev.ps1").toAbsolutePath();
+        Path script = Path.of("deploy", "local", "dev.ps1").toAbsolutePath();
         if (!Files.isRegularFile(script)) {
             throw new IllegalStateException("Working directory must be the CivicFlow project root");
         }

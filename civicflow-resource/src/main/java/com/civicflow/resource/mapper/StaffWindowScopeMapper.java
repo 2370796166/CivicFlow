@@ -7,6 +7,12 @@ import java.util.List;
 import org.apache.ibatis.annotations.Param;
 
 public interface StaffWindowScopeMapper extends BaseMapper<StaffWindowScopeEntity> {
+    List<Long> selectDirectStaffIds(@Param("windowId") long windowId);
+
+    List<Long> selectInheritedStaffIds(@Param("outletId") long outletId);
+
+    int logicallyDeleteByWindow(@Param("windowId") long windowId);
+
     List<StaffScopeRow> selectAuthorizedRows(@Param("staffUserId") long staffUserId);
 
     long countByOutlet(@Param("outletId") long outletId);

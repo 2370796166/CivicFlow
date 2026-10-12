@@ -18,12 +18,16 @@ import org.springframework.web.bind.annotation.*;
 @PreAuthorize("hasRole('USER')")
 public class UserSlotController {
     private final SlotAvailabilityService slots;
+    private final com.civicflow.appointment.config.AppointmentProperties properties;
 
-    public UserSlotController(SlotAvailabilityService slots) {
+    public UserSlotController(
+            SlotAvailabilityService slots,
+            com.civicflow.appointment.config.AppointmentProperties properties) {
         this.slots = slots;
+        this.properties = properties;
     }
 
-    @GetMapping
+    @GetMapping("/availability")
     ApiResponse<List<SlotAvailabilityService.Slot>> list(
             @RequestParam @Positive long outletId,
             @RequestParam @Positive long itemId,
@@ -31,5 +35,21 @@ public class UserSlotController {
             HttpServletRequest request) {
         return ApiResponse.success(
                 slots.list(outletId, itemId, date), RequestIdFilter.current(request));
+    }
+
+    public record Rules(
+            int advanceDays,
+            java.util.Set<LocalDate> closedDates,
+            long cancellationNoticeSeconds) {}
+
+    @GetMapping("/rules")
+    ApiResponse<Rules> rules(HttpServletRequest request) {
+        var rules = properties.getRules();
+        return ApiResponse.success(
+                new Rules(
+                        rules.getAdvanceDays(),
+                        java.util.Set.copyOf(rules.getClosedDates()),
+                        rules.getCancellationNotice().toSeconds()),
+                RequestIdFilter.current(request));
     }
 }

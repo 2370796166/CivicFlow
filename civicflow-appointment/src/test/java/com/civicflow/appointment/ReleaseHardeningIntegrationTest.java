@@ -92,7 +92,6 @@ class ReleaseHardeningIntegrationTest {
     @Autowired JdbcTemplate db;
     @Autowired ObjectMapper json;
     @Autowired ReservationWorkflowService workflow;
-    @Autowired com.civicflow.appointment.config.AppointmentProperties appointmentProperties;
     @Autowired AppointmentCreationService creation;
     @Autowired ReservationCreateListener consumer;
     @Autowired ReservationEventPublisher publisher;
@@ -206,7 +205,7 @@ class ReleaseHardeningIntegrationTest {
     @Test
     void asynchronousAdmissionRecoversWithRealBrokerAndPreservesOneOrder() throws Exception {
         var snapshot = slot(41004, 1);
-        appointmentProperties.getReservation().setAsyncPublish(true);
+        configuration.getReservation().setAsyncPublish(true);
         try {
             var admitted =
                     workflow.create(
@@ -236,7 +235,7 @@ class ReleaseHardeningIntegrationTest {
                             reservation));
             assertEquals(0, stock.reconciliationSnapshot(snapshot.toStockSnapshot()).remaining());
         } finally {
-            appointmentProperties.getReservation().setAsyncPublish(false);
+            configuration.getReservation().setAsyncPublish(false);
         }
     }
 
@@ -280,14 +279,22 @@ class ReleaseHardeningIntegrationTest {
                 TimeUnit.MILLISECONDS);
         try (var k6 =
                 new GenericContainer<>("grafana/k6:0.52.0")
-                        .withCreateContainerCmdModifier(c -> c.withEntrypoint("/bin/sh"))
+                        .withCreateContainerCmdModifier(
+                                c -> {
+                                    c.withEntrypoint("/bin/sh");
+                                    if (System.getProperty("os.name")
+                                            .toLowerCase(Locale.ROOT)
+                                            .contains("linux")) {
+                                        c.getHostConfig()
+                                                .withExtraHosts(
+                                                        "host.docker.internal:host-gateway");
+                                    }
+                                })
                         .withCommand("-c", "sleep 300")
                         .withCopyFileToContainer(
-                                MountableFile.forHostPath(fixture), "/tmp/fixture.json")
+                                MountableFile.forHostPath(fixture, 0644), "/tmp/fixture.json")
                         .withCopyFileToContainer(
-                                MountableFile.forHostPath(
-                                        Path.of("..", "scripts", "release_load.js")
-                                                .toAbsolutePath()),
+                                MountableFile.forClasspathResource("load/reservation.js", 0644),
                                 "/tmp/load.js")) {
             k6.start();
             var result =

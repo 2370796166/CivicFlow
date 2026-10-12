@@ -24,7 +24,7 @@ import requests
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 LOCAL = ROOT / '.local' / 'dev'
 ENV_FILE = ROOT / 'deploy/compose/.env'
 SERVICES = {'auth': 8081, 'resource': 8082, 'appointment': 8083, 'queue': 8084, 'gateway': 8080}
@@ -191,6 +191,9 @@ def property_text(values):
 
 
 def configure(values, keys, *, directory=None, container=False):
+    web_port = values.get('WEB_PORT', '5173') if container else '5173'
+    browser_origins = values.get('CIVICFLOW_GATEWAY_CORS_ALLOWED_ORIGINS') or (
+        f'http://localhost:{web_port},http://127.0.0.1:{web_port}')
     common = {k: v for k, v in values.items() if k.startswith(('NACOS_', 'REDIS_', 'RABBITMQ_'))}
     for k in ('NACOS_AUTH_TOKEN', 'NACOS_AUTH_IDENTITY_KEY', 'NACOS_AUTH_IDENTITY_VALUE'):
         common.pop(k, None)
@@ -200,7 +203,7 @@ def configure(values, keys, *, directory=None, container=False):
                    'spring.cloud.nacos.discovery.ip': '127.0.0.1',
                    'CIVICFLOW_JWKS_URI': 'http://127.0.0.1:8081/.well-known/jwks.json',
                    'CIVICFLOW_GATEWAY_JWK_SET_URI': 'http://127.0.0.1:8081/.well-known/jwks.json',
-                   'CIVICFLOW_GATEWAY_CORS_ALLOWED_ORIGINS': 'http://localhost:5173,http://127.0.0.1:5173'})
+                   'CIVICFLOW_GATEWAY_CORS_ALLOWED_ORIGINS': browser_origins})
     if container:
         common.update({'NACOS_SERVER_ADDR': 'nacos:8848', 'NACOS_GROUP': 'CIVICFLOW_DOCKER',
                        'REDIS_HOST': 'redis', 'REDIS_PORT': '6379',
@@ -344,6 +347,16 @@ def seed_admin(keys, *, query=None, directory=None):
                                    keys['adminPassword'] + '\n', encoding='utf-8')
 
 
+def seed_idea_admin(keys):
+    # IDEA owns the Java processes; wait until Auth has completed its migrations.
+    if STATE.get('phase') != 'prepared' or STATE.get('adminReady') or not healthy(SERVICES['auth']):
+        return False
+    seed_admin(keys)
+    STATE['adminReady'] = True
+    emit('IDEA Auth ready; local administrator available. Existing accounts retained.')
+    return True
+
+
 def read_state():
     try:
         return json.loads((LOCAL / 'state.json').read_text())
@@ -414,6 +427,7 @@ def supervise(mode):
                 if STATE['phase'] == 'prepared' and (LOCAL / 'start.request').exists():
                     (LOCAL / 'start.request').unlink()
                     start_apps(keys)
+                seed_idea_admin(keys)
                 for name, proc, _ in CHILDREN:
                     if proc.poll() is not None:
                         raise RuntimeError(name + ' stopped unexpectedly; check its local log')
