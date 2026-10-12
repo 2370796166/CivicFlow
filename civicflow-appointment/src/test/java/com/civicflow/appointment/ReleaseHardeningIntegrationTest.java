@@ -292,9 +292,9 @@ class ReleaseHardeningIntegrationTest {
                                 })
                         .withCommand("-c", "sleep 300")
                         .withCopyFileToContainer(
-                                MountableFile.forHostPath(fixture), "/tmp/fixture.json")
+                                MountableFile.forHostPath(fixture, 0644), "/tmp/fixture.json")
                         .withCopyFileToContainer(
-                                MountableFile.forClasspathResource("load/reservation.js"),
+                                MountableFile.forClasspathResource("load/reservation.js", 0644),
                                 "/tmp/load.js")) {
             k6.start();
             var result =
