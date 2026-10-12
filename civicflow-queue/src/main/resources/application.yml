@@ -11,6 +11,10 @@ spring:
   profiles:
     default: dev
   rabbitmq:
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
     listener:
       simple:
         default-requeue-rejected: false
@@ -42,7 +46,19 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info,prometheus,metrics
   endpoint:
     health:
       show-details: never
+      probes:
+        enabled: true
+
+logging:
+  structured:
+    format:
+      console: ecs
+  level:
+    root: INFO
+    org.springframework.security: WARN
+    org.springframework.amqp: WARN
+    org.apache.ibatis: WARN

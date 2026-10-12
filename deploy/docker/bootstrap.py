@@ -30,7 +30,7 @@ def query(sql):
     if 'information_schema.tables' in sql:
         # Check each schema under its own account; no root or cross-schema grants.
         count = 0
-        for service in ('auth', 'resource', 'appointment', 'queue'):
+        for service in ('auth', 'resource', 'appointment', 'queue', 'notification'):
             with connect(service) as connection, connection.cursor() as cursor:
                 cursor.execute('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=%s',
                                ('civicflow_'+service,))

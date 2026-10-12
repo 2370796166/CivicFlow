@@ -6,6 +6,7 @@ import com.civicflow.appointment.entity.OutboxEventEntity;
 import com.civicflow.appointment.enums.OutboxStatus;
 import com.civicflow.appointment.mapper.OutboxEventMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
@@ -17,6 +18,7 @@ import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -28,6 +30,12 @@ public class ConfirmTimeoutPublisher {
     private final ObjectMapper json;
     private final AppointmentProperties properties;
     private final Clock clock;
+    private MeterRegistry metrics;
+
+    @Autowired
+    void setMetrics(MeterRegistry metrics) {
+        this.metrics = metrics;
+    }
 
     public ConfirmTimeoutPublisher(
             OutboxEventMapper outbox,
@@ -140,6 +148,15 @@ public class ConfirmTimeoutPublisher {
                     "Timeout publish pending retry eventId={} type={}",
                     entry.getEventId(),
                     exception.getClass().getSimpleName());
+        }
+        if (!acknowledged && metrics != null) {
+            metrics.counter(
+                            "civicflow_mq_publish_failures",
+                            "event",
+                            "timeout",
+                            "outcome",
+                            "failed")
+                    .increment();
         }
         OutboxEventEntity change = new OutboxEventEntity();
         change.setStatus(acknowledged ? OutboxStatus.PUBLISHED : OutboxStatus.FAILED);

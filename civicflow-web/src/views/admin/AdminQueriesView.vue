@@ -23,7 +23,7 @@ async function load() {
   loading.value = true; error.value = false
   try {
     const params = props.kind === 'appointments' ? { page: page.value, outletId: outletId.value || undefined, itemId: itemId.value || undefined, status: status.value || undefined, dateFrom: dateFrom.value || undefined, dateTo: dateTo.value || undefined } : props.kind === 'operation-logs' ? { page: page.value, appointmentId: appointmentId.value || undefined, requestId: requestId.value || undefined } : props.kind === 'statistics' ? { dateFrom: dateFrom.value, dateTo: dateTo.value } : { page: page.value }
-    const path = props.kind === 'statistics' ? '/admin/appointments/statistics' : props.kind === 'appointments' ? '/admin/operations/appointments' : props.kind === 'syncs' ? '/admin/queues/syncs' : props.kind === 'operation-logs' && source.value !== 'appointment' ? '/admin/audit/' + source.value : '/admin/' + props.kind
+    const path = props.kind === 'statistics' ? '/admin/appointments/statistics' : props.kind === 'appointments' ? '/admin/operations/appointments' : props.kind === 'syncs' ? '/admin/queues/syncs' : props.kind === 'reconciliations' ? '/admin/operations/reconciliations' : props.kind === 'operation-logs' && source.value !== 'appointment' ? '/admin/audit/' + source.value : '/admin/' + props.kind
     const response = await api.get<ApiResponse<Page<Row> | Row[]>>(path, { params })
     if (current !== generation) return
     const data = response.data.data
@@ -41,7 +41,7 @@ async function loadDetail() {
   const generation = ++detailGeneration
   detailLoading.value = true; detailError.value = false
   try {
-    const path = props.kind === 'appointments' ? '/admin/operation-logs' : '/admin/reconciliations/' + selectedId.value
+    const path = props.kind === 'appointments' ? '/admin/operation-logs' : '/admin/operations/reconciliations/' + selectedId.value
     const response = await api.get<ApiResponse<Page<Row>>>(path, { params: { page: detailPage.value, appointmentId: props.kind === 'appointments' ? selectedId.value : undefined } })
     if (generation !== detailGeneration) return
     detail.value = response.data.data.items; detailTotal.value = response.data.data.total

@@ -1,12 +1,14 @@
 package com.civicflow.auth.service.impl;
 
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.civicflow.auth.config.MobileProtector;
 import com.civicflow.auth.config.SecretHashing;
 import com.civicflow.auth.convert.UserConverter;
 import com.civicflow.auth.dto.request.ChangeUserStatusRequest;
 import com.civicflow.auth.dto.request.CreateUserRequest;
 import com.civicflow.auth.dto.request.ReplaceUserRolesRequest;
+import com.civicflow.auth.dto.response.UserNameResponse;
 import com.civicflow.auth.dto.response.UserResponse;
 import com.civicflow.auth.entity.AuthAdminIdempotencyEntity;
 import com.civicflow.auth.entity.AuthSecurityAuditEntity;
@@ -82,6 +84,28 @@ public class UserAdminServiceImpl implements UserAdminService {
         this.secretHashing = secretHashing;
         this.clock = clock;
         this.objectMapper = objectMapper;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UserNameResponse> userNames(
+            long actorUserId, int actorTokenVersion, List<Long> ids) {
+        assertActiveAdmin(actorUserId, actorTokenVersion);
+        if (ids == null
+                || ids.isEmpty()
+                || ids.size() > 100
+                || ids.stream().anyMatch(id -> id == null || id <= 0)) {
+            throw new BusinessException(CommonErrorCode.VALIDATION);
+        }
+        return userMapper
+                .selectList(
+                        Wrappers.<SysUserEntity>lambdaQuery()
+                                .select(SysUserEntity::getId, SysUserEntity::getDisplayName)
+                                .in(SysUserEntity::getId, ids.stream().distinct().toList())
+                                .orderByAsc(SysUserEntity::getId))
+                .stream()
+                .map(user -> new UserNameResponse(user.getId().toString(), user.getDisplayName()))
+                .toList();
     }
 
     @Override

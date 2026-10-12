@@ -11,8 +11,10 @@ import com.civicflow.appointment.service.ReservationStockService;
 import com.civicflow.appointment.service.RetryableStockCompensationException;
 import com.civicflow.appointment.service.StockReleaseService;
 import com.civicflow.common.exception.BusinessException;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Instant;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -24,6 +26,12 @@ public class StockReleaseServiceImpl implements StockReleaseService {
     private final ReservationStockService stockService;
     private final Clock clock;
     private final AppointmentProperties properties;
+    private MeterRegistry metrics;
+
+    @Autowired
+    void setMetrics(MeterRegistry metrics) {
+        this.metrics = metrics;
+    }
 
     public StockReleaseServiceImpl(
             StockReleaseRecordMapper mapper,
@@ -79,6 +87,7 @@ public class StockReleaseServiceImpl implements StockReleaseService {
             record.setLastErrorCode(null);
             mapper.updateById(record);
         } catch (BusinessException exception) {
+            compensationFailed("business");
             record.setStatus(CompensationStatus.NEED_RECONCILE);
             record.setNextAttemptAt(now.plus(properties.getRecovery().getRetryDelay()));
             record.setLastErrorCode(exception.errorCode().code());
@@ -86,12 +95,19 @@ public class StockReleaseServiceImpl implements StockReleaseService {
             throw new RetryableStockCompensationException(
                     "Stock release requires retry or reconciliation", exception);
         } catch (RuntimeException exception) {
+            compensationFailed("dependency");
             record.setStatus(CompensationStatus.FAILED);
             record.setNextAttemptAt(now.plus(properties.getRecovery().getRetryDelay()));
             record.setLastErrorCode("COMPENSATION_DEPENDENCY_FAILED");
             mapper.updateById(record);
             throw new RetryableStockCompensationException(
                     "Stock release dependency failed", exception);
+        }
+    }
+
+    private void compensationFailed(String type) {
+        if (metrics != null) {
+            metrics.counter("civicflow_compensation_failures", "type", type).increment();
         }
     }
 

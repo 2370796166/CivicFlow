@@ -34,6 +34,7 @@ class AppointmentDatabaseContractTest {
             migration("V4__create_appointment_command_idempotency.sql");
     private static final String RECONCILIATION_DDL =
             migration("V5__reconciliation_idempotency.sql");
+    private static final String ADMIN_DDL = migration("V7__admin_queries.sql");
 
     @Test
     void entitiesMirrorAllAppointmentTables() {
@@ -48,6 +49,9 @@ class AppointmentDatabaseContractTest {
         assertEntityMatchesTable(StockReleaseRecordEntity.class, "stock_release_record");
         Set<String> runColumns = new HashSet<>(columnsFor("stock_reconciliation_run"));
         runColumns.addAll(Set.of("idempotency_key_hash", "request_hash", "report_json"));
+        assertTrue(ADMIN_DDL.contains("ADD COLUMN slot_id"));
+        assertTrue(ADMIN_DDL.contains("ADD COLUMN failure_code"));
+        runColumns.addAll(Set.of("slot_id", "failure_code"));
         assertEquals(runColumns, fieldsOf(StockReconciliationRunEntity.class));
         assertEntityMatchesTable(
                 StockReconciliationDetailEntity.class, "stock_reconciliation_detail");

@@ -1,6 +1,6 @@
 """Persistent loopback-only developer launcher. Never deletes Docker volumes.
 
-up: build and start infra + five services + Vite; prepare: infra/config for IDEA.
+up: build and start infra + six services + Vite; prepare: infra/config for IDEA.
 The supervisor owns only its child processes. stop never kills arbitrary PIDs.
 """
 import argparse
@@ -27,7 +27,8 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 ROOT = Path(__file__).resolve().parents[2]
 LOCAL = ROOT / '.local' / 'dev'
 ENV_FILE = ROOT / 'deploy/compose/.env'
-SERVICES = {'auth': 8081, 'resource': 8082, 'appointment': 8083, 'queue': 8084, 'gateway': 8080}
+SERVICES = {'auth': 8081, 'resource': 8082, 'appointment': 8083, 'queue': 8084,
+            'notification': 8085, 'gateway': 8080}
 GROUP = 'CIVICFLOW_LOCAL_LAUNCHER'
 HTTP = requests.Session()
 HTTP.trust_env = False
@@ -92,6 +93,15 @@ def environment():
         with ENV_FILE.open('x', encoding='utf-8') as handle:
             handle.write(''.join(f'{k}={v}\n' for k, v in values.items()))
     values = read_env()
+    sample = read_env(ROOT / 'deploy/compose/.env.example')
+    additions = {}
+    for key in sample:
+        if key.startswith('CIVICFLOW_NOTIFICATION_DB_') and key not in values:
+            additions[key] = secrets.token_urlsafe(24) if 'PASSWORD' in key else sample[key]
+    if additions:
+        with ENV_FILE.open('a', encoding='utf-8') as handle:
+            handle.write(''.join(f'{key}={value}\n' for key, value in additions.items()))
+        values.update(additions)
     if int(values.get('NACOS_GRPC_PORT', 9848)) != int(values.get('NACOS_PORT', 8848)) + 1000:
         raise RuntimeError('NACOS_GRPC_PORT must equal NACOS_PORT + 1000')
     return values
@@ -149,6 +159,8 @@ def prepare_infra(values):
     command(cmd + ['config', '--quiet'])
     command(cmd + ['up', '-d', '--wait', '--wait-timeout', '240', 'mysql', 'redis', 'rabbitmq', 'nacos'],
             timeout=300, log=LOCAL / 'compose.log')
+    command(cmd + ['run', '--rm', '--no-deps', 'notification-db-init'],
+            timeout=120, log=LOCAL / 'notification-db-init.log')
     command(cmd + ['--profile', 'init', 'run', '--rm', 'nacos-init'],
             timeout=120, log=LOCAL / 'nacos-init.log')
     mysql('SELECT 1;')  # Actual authentication; mysqladmin ping can succeed on access denied.
@@ -162,7 +174,7 @@ def material(*, directory=None, query=None, admin_username=None, admin_password=
         return json.loads(path.read_text())
     # Never silently rotate encryption keys for a previously populated database.
     count = query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema IN "
-                  "('civicflow_auth','civicflow_resource','civicflow_appointment','civicflow_queue');")
+                  "('civicflow_auth','civicflow_resource','civicflow_appointment','civicflow_queue','civicflow_notification');")
     if int(count.strip()) > 0:
         raise RuntimeError('Existing database has tables but .local/dev/keys.json is missing. '
                            'Restore the previous development keys; existing data was not changed.')

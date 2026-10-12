@@ -1,0 +1,38 @@
+spring:
+  config:
+    import: "optional:nacos:${spring.application.name}.yaml?group=${NACOS_GROUP}"
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR}
+      username: ${NACOS_USERNAME}
+      password: ${NACOS_PASSWORD}
+      discovery:
+        namespace: ${NACOS_NAMESPACE}
+        group: ${NACOS_GROUP}
+      config:
+        namespace: ${NACOS_NAMESPACE}
+        group: ${NACOS_GROUP}
+  datasource:
+    url: ${CIVICFLOW_NOTIFICATION_DB_URL}
+    username: ${CIVICFLOW_NOTIFICATION_DB_APP_USERNAME}
+    password: ${CIVICFLOW_NOTIFICATION_DB_APP_PASSWORD}
+  flyway:
+    enabled: true
+    url: ${CIVICFLOW_NOTIFICATION_DB_URL}
+    user: ${CIVICFLOW_NOTIFICATION_DB_MIGRATION_USERNAME}
+    password: ${CIVICFLOW_NOTIFICATION_DB_MIGRATION_PASSWORD}
+  rabbitmq:
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT}
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+    virtual-host: ${RABBITMQ_VHOST}
+    ssl:
+      enabled: true
+      validate-server-certificate: true
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: readinessState,db,rabbit

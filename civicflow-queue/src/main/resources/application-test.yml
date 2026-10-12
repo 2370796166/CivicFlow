@@ -32,6 +32,7 @@ management:
 
 civicflow:
   queue:
+    notification-publisher-enabled: false
     appointment-url: http://localhost
     resource-url: http://localhost
     jwt:

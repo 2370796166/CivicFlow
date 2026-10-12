@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { canCancel, queueTerminal, remaining, reservationTerminal } from './userFlow'
+import { canCancel, checkInDateHint, queueTerminal, remaining, reservationTerminal } from './userFlow'
 
 describe('user flow display rules', () => {
+  it('uses the Guangzhou calendar date across the UTC midnight boundary', () => {
+    expect(checkInDateHint('2026-10-03', Date.parse('2026-10-02T16:01:00Z'))).toBe('')
+    expect(checkInDateHint('2026-10-04', Date.parse('2026-10-02T16:01:00Z'))).toContain('预约当天')
+    expect(checkInDateHint('2026-10-02', Date.parse('2026-10-02T16:01:00Z'))).toContain('已过')
+  })
   it('stops reservation polling only on server terminal states', () => {
     expect(reservationTerminal.has('CREATING')).toBe(false)
     expect(reservationTerminal.has('PENDING_CONFIRM')).toBe(true)

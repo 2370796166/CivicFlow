@@ -1,0 +1,29 @@
+spring:
+  config:
+    import: "optional:nacos:${spring.application.name}.yaml?group=${NACOS_GROUP:CIVICFLOW_GROUP}&refreshEnabled=true"
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${NACOS_USERNAME:}
+      password: ${NACOS_PASSWORD:}
+      discovery:
+        namespace: ${NACOS_NAMESPACE:dev}
+        group: ${NACOS_GROUP:CIVICFLOW_GROUP}
+      config:
+        namespace: ${NACOS_NAMESPACE:dev}
+        group: ${NACOS_GROUP:CIVICFLOW_GROUP}
+  datasource:
+    url: "${CIVICFLOW_NOTIFICATION_DB_URL:jdbc:mysql://127.0.0.1:${MYSQL_PORT:3306}/civicflow_notification?useUnicode=true&characterEncoding=UTF-8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true}"
+    username: ${CIVICFLOW_NOTIFICATION_DB_APP_USERNAME:civicflow_notification_app}
+    password: ${CIVICFLOW_NOTIFICATION_DB_APP_PASSWORD:}
+  flyway:
+    enabled: true
+    url: "${CIVICFLOW_NOTIFICATION_DB_URL:jdbc:mysql://127.0.0.1:${MYSQL_PORT:3306}/civicflow_notification?useUnicode=true&characterEncoding=UTF-8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true}"
+    user: ${CIVICFLOW_NOTIFICATION_DB_MIGRATION_USERNAME:civicflow_notification_migration}
+    password: ${CIVICFLOW_NOTIFICATION_DB_MIGRATION_PASSWORD:}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:civicflow}
+    password: ${RABBITMQ_PASSWORD:}
+    virtual-host: ${RABBITMQ_VHOST:civicflow}

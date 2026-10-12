@@ -7,6 +7,7 @@ import AdminResourceSelect from '@/components/AdminResourceSelect.vue'
 import type { AdminResource, AdminSlot, SlotBatchResult, SlotStatus } from '@/types/admin'
 import { adminErrorMessage } from '@/utils/adminError'
 import { chinaInstant, chinaLocal, dayCount, validateSlotTimes } from '@/utils/slotForm'
+import { adminLabel } from '@/utils/adminQueries'
 
 const rows = ref<AdminSlot[]>([])
 const total = ref(0), page = ref(1)
@@ -175,6 +176,11 @@ onMounted(() => { void load() })
       class="admin-table"
     >
       <el-table-column
+        prop="id"
+        label="号源 ID"
+        min-width="185"
+      />
+      <el-table-column
         prop="serviceDate"
         label="服务日期"
         width="120"
@@ -201,11 +207,21 @@ onMounted(() => { void load() })
         prop="status"
         label="状态"
         width="115"
-      /><el-table-column
+      >
+        <template #default="{ row }">
+          {{ adminLabel(row.status) }}
+        </template>
+      </el-table-column><el-table-column
         label="操作"
         min-width="280"
       >
         <template #default="{ row }">
+          <RouterLink
+            class="admin-inline-link"
+            :to="{ path: '/admin/reconciliations', query: { slotId: row.id } }"
+          >
+            对账 / 历史
+          </RouterLink>
           <el-button
             v-if="row.status === 'DRAFT'"
             text
@@ -229,7 +245,7 @@ onMounted(() => { void load() })
                   :key="next"
                   :command="next"
                 >
-                  {{ next }}
+                  {{ adminLabel(next) }}
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>

@@ -4,21 +4,21 @@ Vue 3 单应用的 USER、STAFF、ADMIN 三入口。普通用户端已接入网�
 
 ## 本地运行
 
-使用 Node.js 20.19+ 或 22.12+。复制 `.env.example` 为 `.env.local`，按需设置本地 gateway 地址、3–5 秒的 `VITE_QUEUE_POLL_MS` 和 3–10 秒的 `VITE_STAFF_POLL_MS`。使用 `npm ci` 安装锁定依赖，运行 `npm run dev`。检查命令为 `npm run typecheck`、`npm run lint`、`npm run test`、`npm run build`。
+使用 Node.js 24.12+ 或 22.20+。复制 `.env.example` 为 `.env.local`，按需设置本地 gateway 地址、3–5 秒的 `VITE_QUEUE_POLL_MS` 和 3–10 秒的 `VITE_STAFF_POLL_MS`。使用 `npm ci` 安装锁定依赖，运行 `npm run dev`。检查命令为 `npm run typecheck`、`npm run lint`、`npm run test`、`npm run build`。
 
-普通用户 `GET /api/v1/user/slots` 按网点、事项、服务日期和分页返回公开时段，过滤草稿、删除及不可用资源，区分可预约、未放号、暂停和截止状态。页面提交预约后进入结果查询，再跳转预约详情。网络结果未知时复用原幂等键；明确的业务拒绝允许创建新请求。列表仅显示总名额，实际库存由预约服务校验。
+普通用户 `GET /api/v1/user/slots` 按网点、事项、服务日期和分页返回公开时段，过滤草稿、删除及不可用资源，区分可预约、未放号、暂停和截止状态。页面提交预约后进入结果查询，再跳转预约详情。网络结果未知时复用原幂等键；明确的业务拒绝允许创建新请求。页面通过独立库存投影展示真实余量，投影未知时不将总名额当作余量；实际是否可预约由提交接口裁决。
 
 预约详情提供“现场签到”，复用现有签名二维码和服务端归属、时间窗口校验；窗口工作台也提供扫码枪/二维码内容输入入口。二维码内容只保留在当前页面内存，签到成功或离开页面后清除，不进入日志或浏览器持久存储。
 
 窗口人员接口当前只有 `ACTIVE/ENDED` 工作会话，没有暂停/恢复；STAFF 查询只返回本人当前会话与当前票，没有等待人数、已叫号或过号列表。工作台展示当前办理票及可执行操作，不展示缺少数据的统计卡片。
 
-管理员预约查询支持用户、网点、日期、状态和分页，详情可跳转到该预约的操作日志。日志页面仅展示预约状态变更审计，不返回内部 detail JSON、二维码或密钥字段。窗口事项绑定及人员授权均先 GET 读取原配置，再以版本和幂等键保存；人员授权保留已有网点级授权并单独显示，直接绑定不授予 STAFF 角色。对账仍为单号源操作，暂不提供历史列表。号源批量生成先展示日期范围，确认后提交并显示逐日结果。
+管理员预约查询支持用户、网点、日期、状态和分页，详情可跳转到该预约的操作日志。操作日志页面支持预约、排队、资源、认证和库存审计，不返回内部 detail JSON、二维码或密钥字段。窗口事项绑定及人员授权均先 GET 读取原配置，再以版本和幂等键保存；人员授权保留已有网点级授权并单独显示，直接绑定不授予 STAFF 角色。支持单号源对账、安全修复及对账历史查询。号源批量生成先展示日期范围，确认后提交并显示逐日结果。
 
 浏览器只访问同源 `/api/v1`；Vite 在本地把 `/api` 代理到 gateway。生产部署应由同源反向代理转发，且不暴露 `/internal/**`。
 
 ## 测试与完整项目启动
 
-前端使用 `npm run test` 运行页面测试。完整项目的 Docker 启动、本机调试和手工演示步骤见 [根 README](../README.md)。本机额外的端到端测试与压测工具不随仓库发布。
+前端使用 `npm run test` 运行页面测试。完整项目的 Docker 启动、本机调试和手工演示步骤见 [根 README](../README.md)。整合后的本地诊断与合成数据工具见 `deploy/tests`。
 
 页面按路由懒加载，Element Plus 仅注册实际使用的组件，不依赖完整组件插件。
 
@@ -27,3 +27,5 @@ Vue 3 单应用的 USER、STAFF、ADMIN 三入口。普通用户端已接入网�
 现有 auth 接口通过 JSON 返回 `{accessToken,expiresIn,refreshToken,user}`，refresh 接收 `{refreshToken}` 并轮换。当前两种 token 都仅保存在 Pinia 内存，页面刷新需重新登录。没有使用 localStorage、sessionStorage、URL 或日志持久化凭证。若以后改为 HttpOnly Cookie，必须先在 auth/gateway 实现 Cookie、CSRF 防护并更新安全契约。
 
 Axios 对并发 401 共享一次刷新 Promise；刷新失败时清除内存会话并跳到登录。GET 去重为显式 `dedupe: true`，仅取消同一方法、路径和参数的上一个请求，不影响写操作。服务端返回的 `requestId` 是追踪依据；网关会重新生成客户端传入的 `X-Request-Id`。角色菜单只改善导航体验，所有接口仍由网关和业务服务鉴权。
+
+站内通知页面访问独立 notification 服务的 `/user/notifications` 及 `/user/notification-preferences`，支持已读和可选通知偏好。原 `/user/messages` 页面保留为预约消息记录；不混合两种消息的 ID、分页或已读状态。

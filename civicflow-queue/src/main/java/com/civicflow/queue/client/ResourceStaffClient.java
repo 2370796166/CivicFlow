@@ -1,11 +1,13 @@
 package com.civicflow.queue.client;
 
 import com.civicflow.common.api.ApiResponse;
+import com.civicflow.common.trace.TraceHeaders;
 import com.civicflow.queue.config.QueueProperties;
 import com.civicflow.queue.config.RequestIdFilter;
 import feign.RequestInterceptor;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.MDC;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.util.StringUtils;
@@ -44,8 +46,11 @@ public interface ResourceStaffClient {
                 String traceId =
                         context instanceof ServletRequestAttributes servlet
                                 ? RequestIdFilter.current(servlet.getRequest())
-                                : UUID.randomUUID().toString();
+                                : MDC.get("traceId") != null
+                                        ? MDC.get("traceId")
+                                        : UUID.randomUUID().toString();
                 template.header(RequestIdFilter.HEADER, traceId);
+                template.header("traceparent", TraceHeaders.traceparent(traceId));
             };
         }
     }

@@ -29,7 +29,7 @@ class ResourceReconciliationFlywayMySqlTest {
                         .locations("classpath:db/migration")
                         .load()
                         .migrate();
-        assertEquals(4, result.migrationsExecuted);
+        assertEquals(5, result.migrationsExecuted);
         try (Connection connection = MYSQL.createConnection("");
                 Statement statement = connection.createStatement();
                 ResultSet rows =

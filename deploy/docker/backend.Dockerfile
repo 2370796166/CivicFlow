@@ -7,6 +7,7 @@ COPY civicflow-auth/ civicflow-auth/
 COPY civicflow-resource/ civicflow-resource/
 COPY civicflow-appointment/ civicflow-appointment/
 COPY civicflow-queue/ civicflow-queue/
+COPY civicflow-notification/ civicflow-notification/
 COPY civicflow-gateway/ civicflow-gateway/
 # Windows checkout CRLF must not change the Linux formatter result.
 RUN find . -name '*.java' -exec sed -i 's/\r$//' {} +

@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.UUID;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -20,12 +21,17 @@ public class RequestIdFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String incoming = request.getHeader(HEADER);
         String requestId =
-                incoming != null && incoming.matches("[A-Za-z0-9._:-]{1,64}")
+                request.getRequestURI().startsWith("/internal/")
+                                && incoming != null
+                                && incoming.matches("[A-Za-z0-9._:-]{1,64}")
                         ? incoming
                         : UUID.randomUUID().toString();
         request.setAttribute(ATTRIBUTE, requestId);
         response.setHeader(HEADER, requestId);
-        filterChain.doFilter(request, response);
+        try (MDC.MDCCloseable requestContext = MDC.putCloseable("requestId", requestId);
+                MDC.MDCCloseable traceContext = MDC.putCloseable("traceId", requestId)) {
+            filterChain.doFilter(request, response);
+        }
     }
 
     public static String current(HttpServletRequest request) {

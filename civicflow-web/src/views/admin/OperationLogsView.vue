@@ -1,141 +1,181 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { adminApi } from '@/api/admin'
+import AdminPager from '@/components/AdminPager.vue'
 import StatePanel from '@/components/StatePanel.vue'
+import type { LogQuery, LogSource, OperationLog } from '@/types/admin'
+import { adminTime, adminLabel, logActions, queryValues, validateQuery } from '@/utils/adminQueries'
 import { adminErrorMessage } from '@/utils/adminError'
-import { appointmentStatusText } from '@/utils/userFlow'
-import type { AppointmentLog } from '@/types/admin'
-import type { AppointmentStatus } from '@/types/user'
-
 const route = useRoute()
-const appointmentId = ref(String(route.query.appointmentId ?? '')), operation = ref('')
-const rows = ref<AppointmentLog[]>([]), page = ref(1), total = ref(0), loading = ref(false), error = ref('')
-const operations: Record<string, string> = { CREATE: '创建预约', CONFIRM: '确认预约', CANCEL: '取消预约', EXPIRE: '超时释放', CHECK_IN: '签到', LINK_QUEUE_TICKET: '关联排队票', START_SERVING: '开始办理', COMPLETE: '完成办理', MARK_NO_SHOW: '标记过号' }
-const actors: Record<string, string> = { USER: '用户', ADMIN: '管理员', STAFF: '窗口人员', SERVICE: '系统服务', SYSTEM: '系统' }
-let generation = 0, disposed = false
-function statusText(value: string | null) { return value ? appointmentStatusText[value as AppointmentStatus] || value : '—' }
+const sources: { value: LogSource; label: string; target: string }[] = [{ value: 'appointment', label: '预约办理', target: '预约 ID' }, { value: 'queue', label: '排队叫号', target: '排队票 ID' }, { value: 'resource', label: '资源配置', target: '资源 ID' }, { value: 'auth', label: '账号与权限', target: '目标用户 ID' }, { value: 'stock', label: '号源库存', target: '号源 ID' }]
+const source = ref<LogSource>(sources.some(item => item.value === route.query.source) ? route.query.source as LogSource : 'appointment')
+const filters = reactive({ resourceId: typeof route.query.resourceId === 'string' ? route.query.resourceId : '', actorId: '', requestId: '', action: '', dateFrom: '', dateTo: '' })
+const rows = ref<OperationLog[]>([]), total = ref(0), page = ref(1), size = ref(20), loading = ref(false), error = ref('')
+const detail = ref<OperationLog | null>(null), detailOpen = ref(false)
+let sequence = 0
+let applied: Partial<LogQuery> = queryValues(filters)
 async function load() {
-  if (appointmentId.value && !/^[1-9][0-9]{0,18}$/.test(appointmentId.value)) { error.value = '预约编号须为正整数。'; return }
-  const requestGeneration = ++generation
-  loading.value = true; error.value = ''
-  try {
-    const result = await adminApi.appointmentLogs({ page: page.value, size: 20, appointmentId: appointmentId.value || undefined, operation: operation.value || undefined })
-    if (!disposed && requestGeneration === generation) { rows.value = result.items; total.value = result.total }
-  } catch (failure) { if (!disposed && requestGeneration === generation) error.value = adminErrorMessage(failure) }
-  finally { if (!disposed && requestGeneration === generation) loading.value = false }
+  const current = ++sequence; loading.value = true; error.value = ''
+  try { const result = await adminApi.operationLogs(source.value, { ...applied, page: page.value, size: size.value }); if (current === sequence) { rows.value = result.items; total.value = result.total } }
+  catch (cause) { if (current === sequence) { error.value = adminErrorMessage(cause); rows.value = []; total.value = 0 } }
+  finally { if (current === sequence) loading.value = false }
 }
-function search() { page.value = 1; void load() }
-watch(() => route.query.appointmentId, value => { appointmentId.value = String(value ?? ''); search() })
-onMounted(() => { void load() })
-onUnmounted(() => { disposed = true; generation += 1 })
+function search() { error.value = validateQuery(filters); if (error.value) return; applied = queryValues(filters); page.value = 1; void load() }
+function reset() { Object.assign(filters, { resourceId: '', actorId: '', requestId: '', action: '', dateFrom: '', dateTo: '' }); search() }
+function switchSource(value: LogSource) { if (source.value === value) return; source.value = value; reset() }
+onMounted(search)
 </script>
-
 <template>
   <div class="page-heading">
-    <span class="eyebrow">管理员 / 预约审计</span><h1>预约操作日志</h1><p>查看预约从创建到办理结束的状态变更记录。</p>
+    <span class="eyebrow">管理中心 / 审计追踪</span><h1>操作日志</h1><p>按业务模块查看操作人、状态变更及请求编号，追踪每一次办理和配置变更。</p>
   </div>
-  <div class="content-card admin-card">
+  <div class="content-card admin-card admin-query-page">
+    <nav
+      class="admin-source-tabs"
+      aria-label="日志来源"
+    >
+      <button
+        v-for="item in sources"
+        :key="item.value"
+        :aria-pressed="source === item.value"
+        :class="{ active: source === item.value }"
+        @click="switchSource(item.value)"
+      >
+        {{ item.label }}
+      </button>
+    </nav>
     <form
-      class="admin-toolbar"
+      class="admin-filters"
       @submit.prevent="search"
     >
-      <el-input
-        v-model="appointmentId"
-        placeholder="预约编号"
-        aria-label="预约编号"
+      <label>{{ sources.find(item => item.value === source)?.target }}<input
+        v-model="filters.resourceId"
+        inputmode="numeric"
         maxlength="19"
-        clearable
-      /><el-select
-        v-model="operation"
-        placeholder="全部操作"
-        clearable
-      >
-        <el-option
-          v-for="(label, value) in operations"
-          :key="value"
-          :label="label"
-          :value="value"
-        />
-      </el-select><el-button
-        native-type="submit"
-        type="primary"
-        :loading="loading"
-      >
-        查询日志
-      </el-button>
+      ></label><label>操作人 ID<input
+        v-model="filters.actorId"
+        inputmode="numeric"
+        maxlength="19"
+      ></label><label>操作日期起<input
+        v-model="filters.dateFrom"
+        type="date"
+      ></label><label>操作日期止<input
+        v-model="filters.dateTo"
+        type="date"
+      ></label>
+      <details class="admin-more-filters">
+        <summary>按请求编号或操作类型筛选</summary><div class="admin-filters">
+          <label class="filter-wide">请求编号<input
+            v-model="filters.requestId"
+            maxlength="128"
+            placeholder="完整请求编号"
+          ></label><label>操作类型<select
+            v-model="filters.action"
+          ><option value="">全部操作</option><option
+            v-for="action in logActions[source]"
+            :key="action"
+            :value="action"
+          >{{ adminLabel(action) }}</option></select></label>
+        </div>
+      </details>
+      <div class="admin-filter-actions">
+        <el-button
+          native-type="submit"
+          type="primary"
+          :loading="loading"
+        >
+          查询日志
+        </el-button><el-button
+          :disabled="loading"
+          @click="reset"
+        >
+          重置
+        </el-button>
+      </div>
     </form>
     <p
       v-if="error"
       class="admin-error"
       role="alert"
     >
-      {{ error }}
-    </p>
-    <StatePanel
+      {{ error }} <el-button
+        text
+        @click="load"
+      >
+        重新加载
+      </el-button>
+    </p><StatePanel
       v-if="loading"
       state="loading"
-    />
-    <StatePanel
-      v-else-if="!error && !rows.length"
+    /><StatePanel
+      v-else-if="!rows.length && !error"
       state="empty"
-      title="暂无符合条件的操作记录"
-      description="可输入预约编号查看其处理过程。"
+      title="没有匹配的操作记录"
+      description="调整日期或目标 ID，也可以切换到其他业务模块。"
     />
-    <el-table
-      v-else-if="!error"
-      :data="rows"
-      stripe
+    <div
+      v-else-if="rows.length"
+      class="admin-table-scroll"
     >
-      <el-table-column
-        prop="appointmentId"
-        label="预约编号"
-        min-width="180"
-      />
-      <el-table-column
-        label="操作"
-        min-width="130"
-      >
-        <template #default="{ row }">
-          {{ operations[row.operation] || row.operation }}
-        </template>
-      </el-table-column>
-      <el-table-column
-        label="状态变化"
-        min-width="190"
-      >
-        <template #default="{ row }">
-          {{ statusText(row.fromStatus) }} → {{ statusText(row.toStatus) }}
-        </template>
-      </el-table-column>
-      <el-table-column
-        label="操作者"
-        min-width="170"
-      >
-        <template #default="{ row }">
-          {{ actors[row.actorType] || row.actorType }} {{ row.actorId || '' }}
-        </template>
-      </el-table-column>
-      <el-table-column
-        label="发生时间"
-        min-width="180"
-      >
-        <template #default="{ row }">
-          {{ new Date(row.occurredAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false }) }}
-        </template>
-      </el-table-column>
-      <el-table-column
-        prop="requestId"
-        label="请求编号"
-        min-width="200"
-      />
-    </el-table>
-    <el-pagination
-      v-if="!error && total > 20"
-      v-model:current-page="page"
-      layout="prev, pager, next"
+      <table class="admin-data-table">
+        <thead><tr><th>操作时间</th><th>操作类型</th><th>操作人</th><th>操作对象</th><th>状态 / 结果</th><th>操作</th></tr></thead><tbody>
+          <tr
+            v-for="row in rows"
+            :key="row.id"
+          >
+            <td>{{ adminTime(row.occurredAt) }}</td><td><strong>{{ adminLabel(row.action) }}</strong><small v-if="adminLabel(row.action) !== row.action">{{ row.action }}</small></td><td>{{ adminLabel(row.actorType) }}<small class="data-id">{{ row.actorId ?? '—' }}</small></td><td>{{ adminLabel(row.resourceType) }}<small class="data-id">{{ row.resourceId ?? '—' }}</small></td><td>
+              <span v-if="row.toStatus">{{ adminLabel(row.fromStatus) }} → {{ adminLabel(row.toStatus) }}</span><span
+                v-else
+                class="admin-status"
+                :data-status="row.outcome"
+              >{{ adminLabel(row.outcome) }}</span>
+            </td><td>
+              <el-button
+                text
+                type="primary"
+                @click="detail = row; detailOpen = true"
+              >
+                查看记录
+              </el-button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <AdminPager
+      v-model:page="page"
+      v-model:size="size"
       :total="total"
-      @current-change="load"
+      :loading="loading"
+      @change="load"
     />
   </div>
+  <el-drawer
+    v-model="detailOpen"
+    title="操作记录"
+    size="min(560px, 100vw)"
+  >
+    <template v-if="detail">
+      <h2>{{ adminLabel(detail.action) }}</h2><p class="muted">
+        {{ adminTime(detail.occurredAt) }} · {{ sources.find(item => item.value === source)?.label }}
+      </p><dl class="admin-detail-list">
+        <div
+          v-for="[title, value] in [['日志 ID', detail.id], ['操作类型', detail.action], ['操作人', `${adminLabel(detail.actorType)} / ${detail.actorId ?? '—'}`], ['操作对象', `${adminLabel(detail.resourceType)} / ${detail.resourceId ?? '—'}`], ['操作结果', adminLabel(detail.outcome)], ['原状态', adminLabel(detail.fromStatus)], ['新状态', adminLabel(detail.toStatus)], ['请求编号', detail.requestId]]"
+          :key="title"
+        >
+          <dt>{{ title }}</dt><dd>{{ value }}</dd>
+        </div>
+      </dl><p class="muted">
+        使用请求编号关联同一次操作的服务记录。
+      </p><RouterLink
+        v-if="detail.source === 'appointment' && detail.resourceId"
+        class="admin-inline-link"
+        :to="{ path: '/admin/appointments', query: { keyword: detail.resourceId } }"
+        @click="detailOpen = false"
+      >
+        查看关联预约 →
+      </RouterLink>
+    </template>
+  </el-drawer>
 </template>

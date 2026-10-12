@@ -17,6 +17,7 @@ import com.civicflow.queue.enums.QueueOperation;
 import com.civicflow.queue.enums.QueueTicketStatus;
 import com.civicflow.queue.enums.WindowSessionStatus;
 import com.civicflow.queue.error.QueueErrorCode;
+import com.civicflow.queue.event.QueueNotificationOutbox;
 import com.civicflow.queue.mapper.QueueCommandMapper;
 import com.civicflow.queue.mapper.QueueOperationLogMapper;
 import com.civicflow.queue.mapper.QueueStateSyncMapper;
@@ -49,6 +50,12 @@ public class QueueWorkbenchServiceImpl implements QueueWorkbenchService {
     private final QueueCommandMapper commands;
     private final QueueStateSyncMapper sync;
     private final TransactionTemplate tx;
+    private QueueNotificationOutbox notifications;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void setNotifications(QueueNotificationOutbox notifications) {
+        this.notifications = notifications;
+    }
 
     public QueueWorkbenchServiceImpl(
             ResourceStaffClient resources,
@@ -195,6 +202,14 @@ public class QueueWorkbenchServiceImpl implements QueueWorkbenchService {
                             QueueTicketStatus.WAITING,
                             QueueTicketStatus.CALLED,
                             requestId);
+                    if (notifications != null) {
+                        notifications.emit(ticket, "called", requestId);
+                        for (QueueTicketEntity next :
+                                tickets.nextForNotification(
+                                        session.getOutletId(), today(), selected)) {
+                            notifications.emit(next, "near", requestId);
+                        }
+                    }
                     return ticket.getId();
                 },
                 id -> id == null ? null : QueueTicketResponse.from(tickets.selectById(id)));
@@ -270,6 +285,8 @@ public class QueueWorkbenchServiceImpl implements QueueWorkbenchService {
                             requestId);
                     if (!"RECALL".equals(action))
                         sync.enqueue(IdWorker.getId(), ticketId, ticket.getAppointmentId(), to);
+                    if (notifications != null && "MISS".equals(action))
+                        notifications.emit(ticket, "missed", requestId);
                     return ticketId;
                 },
                 id -> QueueTicketResponse.from(tickets.selectById(id)));

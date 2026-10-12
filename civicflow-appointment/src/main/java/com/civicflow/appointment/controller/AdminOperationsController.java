@@ -61,7 +61,7 @@ public class AdminOperationsController {
                 RequestIdFilter.current(request));
     }
 
-    @GetMapping("/reconciliations")
+    @GetMapping("/operations/reconciliations")
     ApiResponse<PageResponse<AppointmentOperationsQueryService.Run>> runs(
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
@@ -69,7 +69,7 @@ public class AdminOperationsController {
         return ApiResponse.success(queries.runs(page, size), RequestIdFilter.current(request));
     }
 
-    @GetMapping("/reconciliations/{id}")
+    @GetMapping("/operations/reconciliations/{id}")
     ApiResponse<PageResponse<AppointmentOperationsQueryService.Detail>> details(
             @PathVariable @Positive long id,
             @RequestParam(defaultValue = "1") @Min(1) int page,

@@ -16,6 +16,7 @@ import com.civicflow.appointment.enums.OutboxStatus;
 import com.civicflow.appointment.enums.ReservationRequestStatus;
 import com.civicflow.appointment.error.AppointmentErrorCode;
 import com.civicflow.appointment.event.AppointmentMessaging;
+import com.civicflow.appointment.event.AppointmentNotificationOutbox;
 import com.civicflow.appointment.event.ConfirmTimeoutEvent;
 import com.civicflow.appointment.event.PermanentReservationMessageException;
 import com.civicflow.appointment.event.ReservationRequestedEvent;
@@ -48,6 +49,12 @@ public class AppointmentCreationServiceImpl implements AppointmentCreationServic
     private final Clock clock;
     private final OutboxEventMapper outboxMapper;
     private final ObjectMapper objectMapper;
+    private AppointmentNotificationOutbox notifications;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void setNotifications(AppointmentNotificationOutbox notifications) {
+        this.notifications = notifications;
+    }
 
     public AppointmentCreationServiceImpl(
             AppointmentOrderMapper orderMapper,
@@ -175,6 +182,10 @@ public class AppointmentCreationServiceImpl implements AppointmentCreationServic
         outbox.setAttempts(0);
         outbox.setNextAttemptAt(now);
         outboxMapper.insert(outbox);
+        if (notifications != null) {
+            notifications.emit(order, "created", event.traceId());
+            notifications.emit(order, "reminder", event.traceId());
+        }
 
         MessageConsumeRecordEntity record = new MessageConsumeRecordEntity();
         record.setConsumerName(AppointmentMessaging.RESERVATION_CREATE_CONSUMER);

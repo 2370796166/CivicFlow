@@ -39,6 +39,7 @@ public class AuthSecurityConfig {
                                                 "/api/v1/auth/refresh",
                                                 "/.well-known/jwks.json",
                                                 "/actuator/health",
+                                                "/actuator/health/**",
                                                 "/actuator/info")
                                         .permitAll()
                                         .requestMatchers("/actuator/prometheus")

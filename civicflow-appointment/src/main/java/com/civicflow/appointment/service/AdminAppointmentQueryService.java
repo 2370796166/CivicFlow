@@ -10,10 +10,11 @@ import com.civicflow.appointment.enums.AppointmentOperation;
 import com.civicflow.appointment.enums.AppointmentStatus;
 import com.civicflow.appointment.mapper.AppointmentOperationLogMapper;
 import com.civicflow.appointment.mapper.AppointmentOrderMapper;
+import com.civicflow.common.api.AdminQueryWindow;
 import com.civicflow.common.api.CommonErrorCode;
+import com.civicflow.common.api.OperationLogResponse;
 import com.civicflow.common.api.PageResponse;
 import com.civicflow.common.exception.BusinessException;
-import java.time.LocalDate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,40 +31,80 @@ public class AdminAppointmentQueryService {
     }
 
     public PageResponse<AdminAppointmentResponse> list(
+            String keyword,
             Long userId,
             Long outletId,
-            LocalDate serviceDate,
+            Long itemId,
+            Long slotId,
             AppointmentStatus status,
-            int page,
-            int size) {
-        validatePage(page, size);
-        if ((userId != null && userId <= 0) || (outletId != null && outletId <= 0)) {
-            throw new BusinessException(CommonErrorCode.VALIDATION);
-        }
+            AdminQueryWindow window) {
         var query =
                 Wrappers.<AppointmentOrderEntity>lambdaQuery()
                         .eq(userId != null, AppointmentOrderEntity::getUserId, userId)
                         .eq(outletId != null, AppointmentOrderEntity::getOutletId, outletId)
-                        .eq(
-                                serviceDate != null,
+                        .eq(itemId != null, AppointmentOrderEntity::getItemId, itemId)
+                        .eq(slotId != null, AppointmentOrderEntity::getSlotId, slotId)
+                        .eq(status != null, AppointmentOrderEntity::getStatus, status)
+                        .ge(
+                                window.dateFrom() != null,
                                 AppointmentOrderEntity::getServiceDate,
-                                serviceDate)
-                        .eq(status != null, AppointmentOrderEntity::getStatus, status);
+                                window.dateFrom())
+                        .le(
+                                window.dateTo() != null,
+                                AppointmentOrderEntity::getServiceDate,
+                                window.dateTo());
+        if (keyword != null && !keyword.isBlank()) {
+            String term = keyword.trim();
+            Long numericId;
+            try {
+                numericId = Long.valueOf(term);
+            } catch (NumberFormatException ignored) {
+                numericId = null;
+            }
+            Long id = numericId;
+            query.and(
+                    q -> {
+                        q.like(AppointmentOrderEntity::getReservationId, term)
+                                .or()
+                                .like(AppointmentOrderEntity::getOutletNameSnapshot, term)
+                                .or()
+                                .like(AppointmentOrderEntity::getItemNameSnapshot, term);
+                        if (id != null) q.or().eq(AppointmentOrderEntity::getId, id);
+                    });
+        }
         long total = orders.selectCount(query);
-        query.orderByDesc(AppointmentOrderEntity::getCreatedAt, AppointmentOrderEntity::getId)
-                .last(pageLimit(page, size));
+        query.orderByDesc(
+                        AppointmentOrderEntity::getServiceDate,
+                        AppointmentOrderEntity::getSlotStartTime,
+                        AppointmentOrderEntity::getId)
+                .last("LIMIT " + window.size() + " OFFSET " + window.offset());
         return PageResponse.of(
-                orders.selectList(query).stream().map(AdminAppointmentQueryService::view).toList(),
-                page,
-                size,
+                orders.selectList(query).stream()
+                        .map(AdminAppointmentQueryService::response)
+                        .toList(),
+                window.page(),
+                window.size(),
                 total);
     }
 
     public AdminAppointmentResponse get(long id) {
-        if (id <= 0) throw new BusinessException(CommonErrorCode.VALIDATION);
-        AppointmentOrderEntity order = orders.selectById(id);
-        if (order == null) throw new BusinessException(CommonErrorCode.NOT_FOUND);
-        return view(order);
+        var row = orders.selectById(id);
+        if (row == null) throw new BusinessException(CommonErrorCode.NOT_FOUND);
+        return response(row);
+    }
+
+    private static AdminAppointmentResponse response(AppointmentOrderEntity row) {
+        return new AdminAppointmentResponse(
+                OperationLogResponse.text(row.getUserId()),
+                OperationLogResponse.text(row.getQueueTicketId()),
+                AppointmentConverter.toResponse(row),
+                row.getConfirmedAt(),
+                row.getCancelledAt(),
+                row.getExpiredAt(),
+                row.getCheckedInAt(),
+                row.getServingAt(),
+                row.getCompletedAt(),
+                row.getNoShowAt());
     }
 
     public PageResponse<AppointmentLogResponse> logs(
@@ -110,11 +151,6 @@ public class AdminAppointmentQueryService {
                 page,
                 size,
                 total);
-    }
-
-    private static AdminAppointmentResponse view(AppointmentOrderEntity order) {
-        return new AdminAppointmentResponse(
-                order.getUserId().toString(), AppointmentConverter.toResponse(order));
     }
 
     private static void validatePage(int page, int size) {

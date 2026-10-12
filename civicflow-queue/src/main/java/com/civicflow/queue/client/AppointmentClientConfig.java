@@ -1,9 +1,11 @@
 package com.civicflow.queue.client;
 
+import com.civicflow.common.trace.TraceHeaders;
 import com.civicflow.queue.config.QueueProperties;
 import com.civicflow.queue.config.RequestIdFilter;
 import feign.RequestInterceptor;
 import java.util.UUID;
+import org.slf4j.MDC;
 import org.springframework.context.annotation.Bean;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -22,8 +24,11 @@ public class AppointmentClientConfig {
             String traceId =
                     context instanceof ServletRequestAttributes servlet
                             ? RequestIdFilter.current(servlet.getRequest())
-                            : UUID.randomUUID().toString();
+                            : MDC.get("traceId") != null
+                                    ? MDC.get("traceId")
+                                    : UUID.randomUUID().toString();
             template.header(RequestIdFilter.HEADER, traceId);
+            template.header("traceparent", TraceHeaders.traceparent(traceId));
         };
     }
 }

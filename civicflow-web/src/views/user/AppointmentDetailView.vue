@@ -5,10 +5,10 @@ import { ElMessage } from 'element-plus'
 import QRCode from 'qrcode'
 import StatePanel from '@/components/StatePanel.vue'
 import { userApi } from '@/api/user'
-import { appointmentStatusText, canCancel, queueStatusText, queueTerminal, remaining } from '@/utils/userFlow'
+import { appointmentStatusText, canCancel, checkInDateHint, queueStatusText, queueTerminal, remaining } from '@/utils/userFlow'
+import type { ApiError } from '@/types/api'
 import type { Appointment, QueueProgress } from '@/types/user'
 import { bookingErrorMessage } from '@/utils/bookingError'
-import type { ApiError } from '@/types/api'
 
 const route = useRoute()
 const record = ref<Appointment | null>(null)
@@ -16,6 +16,7 @@ const progress = ref<QueueProgress | null>(null)
 const qr = ref('')
 const qrToken = ref(''), checkInNotice = ref('')
 const qrExpires = ref('')
+const qrError = ref('')
 const now = ref(Date.now())
 const loading = ref(false)
 const error = ref(false)
@@ -31,6 +32,7 @@ let expiryChecked = false
 const id = computed(() => String(route.params.appointmentId ?? ''))
 const countdown = computed(() => remaining(record.value?.confirmDeadline ?? null, now.value))
 const qrCountdown = computed(() => remaining(qrExpires.value, now.value))
+const qrDateHint = computed(() => record.value ? checkInDateHint(record.value.serviceDate, now.value) : '')
 
 async function load() {
   if (!id.value) return
@@ -73,9 +75,10 @@ async function command(kind: 'confirm' | 'cancel') {
   } finally { action.value = ''; scheduleState() }
 }
 async function issueQr() {
-  if (!record.value || record.value.status !== 'CONFIRMED' || qrBusy.value || action.value === 'check-in' || document.hidden) return
+  if (!record.value || record.value.status !== 'CONFIRMED' || qrBusy.value || action.value === 'check-in' || document.hidden || qrDateHint.value) return
   qrBusy.value = true
   const requestedId = record.value.appointmentId
+  qrError.value = ''
   try {
     const result = await userApi.checkInToken(requestedId, record.value.outletId)
     if (disposed || requestedId !== id.value || record.value?.status !== 'CONFIRMED') return
@@ -86,7 +89,13 @@ async function issueQr() {
     qrExpires.value = result.expiresAt
     clearTimeout(qrTimer)
     qrTimer = setTimeout(() => { qr.value = ''; void issueQr() }, Math.max(1000, Date.parse(result.expiresAt) - Date.now() - 20000))
-  } catch { qr.value = ''; qrToken.value = ''; qrExpires.value = '' }
+  } catch (cause) {
+    if (disposed || requestedId !== id.value) return
+    qr.value = ''; qrToken.value = ''; qrExpires.value = ''
+    qrError.value = (cause as ApiError).code === 'QUEUE_422_CHECKIN_WINDOW'
+      ? '当前不在允许的签到时段内。请核对预约日期、时段和网点，在可签到时段内重试。'
+      : '二维码获取失败，请刷新预约状态后重试。'
+  }
   finally { qrBusy.value = false }
 }
 async function checkIn() {
@@ -122,7 +131,7 @@ function visibilityChanged() {
   if (!document.hidden && record.value?.status === 'CONFIRMED' && (!qr.value || Date.parse(qrExpires.value) - Date.now() < 30000)) void issueQr()
   if (record.value && ['CHECKED_IN', 'SERVING'].includes(record.value.status)) scheduleQueue(document.hidden ? 15000 : 0)
 }
-watch(id, () => { record.value = null; progress.value = null; qr.value = ''; qrToken.value = ''; checkInNotice.value = ''; expiryChecked = false; actionKeys.clear(); void load() })
+watch(id, () => { record.value = null; progress.value = null; qr.value = ''; qrToken.value = ''; checkInNotice.value = ''; qrError.value = ''; expiryChecked = false; actionKeys.clear(); void load() })
 onMounted(() => { disposed = false; clock = setInterval(() => {
   now.value = Date.now()
   if (!expiryChecked && record.value?.status === 'PENDING_CONFIRM' && record.value.confirmDeadline && Date.parse(record.value.confirmDeadline) <= now.value) { expiryChecked = true; void load() }
@@ -188,7 +197,7 @@ onUnmounted(() => { disposed = true; clearInterval(clock); clearTimeout(queueTim
         v-else-if="record.status === 'CONFIRMED'"
         class="notice-box"
       >
-        <strong>签到二维码</strong><p>到达网点后，在可签到时段内获取并出示二维码，也可点击现场签到。二维码约 2 分钟有效，刷新后旧码失效。</p><div
+        <strong>签到二维码</strong><p v-if="qrDateHint" role="status">{{ qrDateHint }}</p><p v-if="qrError" role="alert">{{ qrError }}</p><p>到达网点后，在可签到时段内获取并出示二维码，也可点击现场签到。二维码约 2 分钟有效，刷新后旧码失效。</p><div
           v-if="qr"
           class="qr-wrap"
         >
@@ -199,7 +208,7 @@ onUnmounted(() => { disposed = true; clearInterval(clock); clearTimeout(queueTim
         </div><div class="action-row">
           <el-button
             :loading="qrBusy"
-            :disabled="!!action"
+            :disabled="!!action || !!qrDateHint"
             @click="issueQr"
           >
             {{ qr ? '刷新二维码' : '获取二维码' }}

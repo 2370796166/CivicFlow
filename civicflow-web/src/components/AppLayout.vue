@@ -43,8 +43,10 @@ async function signOut() {
             :class="{ active: route.path.startsWith('/user/appointments') }"
           >
             <span class="nav-dot" />我的预约
+          </RouterLink><RouterLink to="/user/notifications">
+            <span class="nav-dot" />站内通知
           </RouterLink><RouterLink to="/user/messages">
-            <span class="nav-dot" />站内消息
+            <span class="nav-dot" />预约消息记录
           </RouterLink>
         </template>
         <template v-if="auth.roles.includes('ADMIN')">

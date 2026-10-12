@@ -38,10 +38,10 @@ public class GatewayExceptionHandler implements WebExceptionHandler {
                         ? GatewayErrorCode.DEPENDENCY_UNAVAILABLE
                         : GatewayErrorCode.INTERNAL_ERROR;
         LOGGER.warn(
-                "Gateway request failed requestId={} method={} path={} type={}",
+                "Gateway request failed traceId={} requestId={} method={} type={}",
+                GatewayRequestContext.requestId(exchange),
                 GatewayRequestContext.requestId(exchange),
                 exchange.getRequest().getMethod(),
-                exchange.getRequest().getPath().value(),
                 exception.getClass().getSimpleName());
         return responseWriter.write(exchange, status, errorCode);
     }

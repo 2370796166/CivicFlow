@@ -178,6 +178,8 @@ CREATE TABLE stock_reconciliation_run (
     id BIGINT NOT NULL PRIMARY KEY,
     trigger_type VARCHAR(32) NOT NULL,
     slot_scope_json JSON,
+    slot_id BIGINT,
+    failure_code VARCHAR(64),
     status VARCHAR(32) NOT NULL,
     started_at TIMESTAMP(3) NOT NULL,
     completed_at TIMESTAMP(3),

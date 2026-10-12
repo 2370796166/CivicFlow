@@ -15,6 +15,7 @@ import com.civicflow.appointment.enums.AppointmentStatus;
 import com.civicflow.appointment.enums.CompensationStatus;
 import com.civicflow.appointment.enums.StockReleaseReason;
 import com.civicflow.appointment.error.AppointmentErrorCode;
+import com.civicflow.appointment.event.AppointmentNotificationOutbox;
 import com.civicflow.appointment.mapper.ActiveBookingGuardMapper;
 import com.civicflow.appointment.mapper.AppointmentCommandIdempotencyMapper;
 import com.civicflow.appointment.mapper.AppointmentOperationLogMapper;
@@ -26,11 +27,13 @@ import com.civicflow.appointment.service.StockReleaseService;
 import com.civicflow.appointment.support.Digests;
 import com.civicflow.common.api.CommonErrorCode;
 import com.civicflow.common.exception.BusinessException;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -49,6 +52,18 @@ public class AppointmentStateServiceImpl implements AppointmentStateService {
     private final StockReleaseService stockRelease;
     private final org.springframework.jdbc.core.JdbcTemplate jdbc;
     private final com.civicflow.appointment.config.AppointmentProperties properties;
+    private MeterRegistry metrics;
+    private AppointmentNotificationOutbox notifications;
+
+    @Autowired
+    void setNotifications(AppointmentNotificationOutbox notifications) {
+        this.notifications = notifications;
+    }
+
+    @Autowired
+    void setMetrics(MeterRegistry metrics) {
+        this.metrics = metrics;
+    }
 
     public AppointmentStateServiceImpl(
             AppointmentOrderMapper orders,
@@ -107,6 +122,7 @@ public class AppointmentStateServiceImpl implements AppointmentStateService {
                 userId,
                 "USER_CONFIRM",
                 traceId);
+        if (notifications != null) notifications.emit(before, "confirmed", traceId);
         return AppointmentConverter.toResponse(owned(userId, appointmentId));
     }
 
@@ -172,6 +188,7 @@ public class AppointmentStateServiceImpl implements AppointmentStateService {
                 "USER_CANCELLED",
                 traceId,
                 StockReleaseReason.USER_CANCELLED);
+        if (notifications != null) notifications.emit(before, "cancelled", traceId);
         return AppointmentConverter.toResponse(owned(userId, appointmentId));
     }
 
@@ -194,6 +211,19 @@ public class AppointmentStateServiceImpl implements AppointmentStateService {
                 "CONFIRM_DEADLINE_ELAPSED",
                 traceId,
                 StockReleaseReason.APPOINTMENT_EXPIRED);
+        if (metrics != null) {
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(
+                        new TransactionSynchronization() {
+                            @Override
+                            public void afterCommit() {
+                                metrics.counter("civicflow_timeout_closed").increment();
+                            }
+                        });
+            } else {
+                metrics.counter("civicflow_timeout_closed").increment();
+            }
+        }
     }
 
     @Override

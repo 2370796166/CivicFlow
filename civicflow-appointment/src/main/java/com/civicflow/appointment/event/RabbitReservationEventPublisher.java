@@ -3,6 +3,7 @@ package com.civicflow.appointment.event;
 import com.civicflow.appointment.config.AppointmentProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
@@ -13,6 +14,7 @@ import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -23,6 +25,12 @@ public class RabbitReservationEventPublisher implements ReservationEventPublishe
     private final RabbitTemplate rabbitTemplate;
     private final ObjectMapper objectMapper;
     private final AppointmentProperties properties;
+    private MeterRegistry metrics;
+
+    @Autowired
+    void setMetrics(MeterRegistry metrics) {
+        this.metrics = metrics;
+    }
 
     public RabbitReservationEventPublisher(
             RabbitTemplate rabbitTemplate,
@@ -39,6 +47,7 @@ public class RabbitReservationEventPublisher implements ReservationEventPublishe
         try {
             body = objectMapper.writeValueAsBytes(event);
         } catch (JsonProcessingException exception) {
+            publishFailure("serialization");
             return new PublishResult(Outcome.FAILED, 0, "PUBLISH_SERIALIZATION_FAILED");
         }
         boolean unknownSeen = false;
@@ -82,8 +91,21 @@ public class RabbitReservationEventPublisher implements ReservationEventPublishe
                         exception.getClass().getSimpleName());
             }
         }
+        publishFailure(unknownSeen ? "unknown" : "failed");
         return new PublishResult(
                 unknownSeen ? Outcome.UNKNOWN : Outcome.FAILED, maximum, lastError);
+    }
+
+    private void publishFailure(String outcome) {
+        if (metrics != null) {
+            metrics.counter(
+                            "civicflow_mq_publish_failures",
+                            "event",
+                            "reservation",
+                            "outcome",
+                            outcome)
+                    .increment();
+        }
     }
 
     private Message message(ReservationRequestedEvent event, byte[] body) {

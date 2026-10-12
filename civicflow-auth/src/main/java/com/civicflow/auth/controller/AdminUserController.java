@@ -4,6 +4,7 @@ import com.civicflow.auth.config.RequestIdFilter;
 import com.civicflow.auth.dto.request.ChangeUserStatusRequest;
 import com.civicflow.auth.dto.request.CreateUserRequest;
 import com.civicflow.auth.dto.request.ReplaceUserRolesRequest;
+import com.civicflow.auth.dto.response.UserNameResponse;
 import com.civicflow.auth.dto.response.UserResponse;
 import com.civicflow.auth.enums.UserStatus;
 import com.civicflow.auth.service.UserAdminService;
@@ -14,7 +15,11 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.validation.annotation.Validated;
@@ -56,6 +61,19 @@ public class AdminUserController {
                         status,
                         page,
                         size),
+                RequestIdFilter.current(request));
+    }
+
+    @GetMapping("/names")
+    @PreAuthorize("hasRole('ADMIN')")
+    ApiResponse<List<UserNameResponse>> names(
+            JwtAuthenticationToken authentication,
+            @RequestParam(required = false) @NotEmpty @Size(max = 100)
+                    List<@NotNull @Positive Long> ids,
+            HttpServletRequest request) {
+        return ApiResponse.success(
+                userAdminService.userNames(
+                        actorId(authentication), tokenVersion(authentication), ids),
                 RequestIdFilter.current(request));
     }
 

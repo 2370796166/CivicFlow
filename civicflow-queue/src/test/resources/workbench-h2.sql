@@ -1,5 +1,6 @@
 DROP TABLE IF EXISTS queue_sync_audit;
 DROP TABLE IF EXISTS queue_state_sync;
+DROP TABLE IF EXISTS outbox_event;
 CREATE ALIAS IF NOT EXISTS UTC_TIMESTAMP FOR "com.civicflow.queue.H2UtcClock.now";
 DROP TABLE IF EXISTS queue_command_idempotency;
 DROP TABLE IF EXISTS active_window_session_guard;
@@ -29,3 +30,8 @@ CREATE TABLE queue_state_sync (id BIGINT PRIMARY KEY,ticket_id BIGINT NOT NULL,a
 ALTER TABLE queue_state_sync ADD COLUMN lease_owner CHAR(36);
 ALTER TABLE queue_state_sync ADD COLUMN lease_until TIMESTAMP(3);
 CREATE TABLE queue_sync_audit(id BIGINT PRIMARY KEY,sync_id BIGINT NOT NULL,actor_id BIGINT NOT NULL,request_id VARCHAR(64) NOT NULL,reason VARCHAR(256) NOT NULL,created_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE outbox_event (id BIGINT PRIMARY KEY,event_id VARCHAR(36) NOT NULL UNIQUE,aggregate_type VARCHAR(64) NOT NULL,
+ aggregate_id VARCHAR(64) NOT NULL,event_type VARCHAR(128) NOT NULL,event_version INT NOT NULL,routing_key VARCHAR(128) NOT NULL,
+ payload_json VARCHAR(4096) NOT NULL,status VARCHAR(32) NOT NULL,attempts INT NOT NULL,next_attempt_at TIMESTAMP(3) NOT NULL,
+ published_at TIMESTAMP(3),last_error_code VARCHAR(64),created_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP);

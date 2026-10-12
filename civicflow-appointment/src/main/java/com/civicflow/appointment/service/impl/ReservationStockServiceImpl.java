@@ -10,9 +10,11 @@ import com.civicflow.appointment.support.SlotStockSnapshot;
 import com.civicflow.appointment.support.StockScriptResultCode;
 import com.civicflow.common.api.CommonErrorCode;
 import com.civicflow.common.exception.BusinessException;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -23,6 +25,12 @@ public class ReservationStockServiceImpl implements ReservationStockService {
     private final RedisStockRepository repository;
     private final AppointmentProperties properties;
     private final Clock clock;
+    private MeterRegistry metrics;
+
+    @Autowired
+    void setMetrics(MeterRegistry metrics) {
+        this.metrics = metrics;
+    }
 
     public ReservationStockServiceImpl(
             RedisStockRepository repository, AppointmentProperties properties, Clock clock) {
@@ -50,6 +58,12 @@ public class ReservationStockServiceImpl implements ReservationStockService {
                         reservationExpiresAt,
                         activeExpiresAt);
         StockScriptResultCode code = StockScriptResultCode.from(result.code());
+        if (metrics != null) {
+            metrics.counter("civicflow_reservation_attempts", "result", code.name()).increment();
+            if (code == StockScriptResultCode.OUT_OF_STOCK) {
+                metrics.counter("civicflow_lua_stock_insufficient").increment();
+            }
+        }
         return switch (code) {
             case OK ->
                     new ReservationResult(

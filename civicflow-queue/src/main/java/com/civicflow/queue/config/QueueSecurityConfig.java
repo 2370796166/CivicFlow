@@ -42,7 +42,10 @@ public class QueueSecurityConfig {
                         sessions -> sessions.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(
                         requests ->
-                                requests.requestMatchers("/actuator/health", "/actuator/info")
+                                requests.requestMatchers(
+                                                "/actuator/health",
+                                                "/actuator/health/**",
+                                                "/actuator/info")
                                         .permitAll()
                                         .requestMatchers("/actuator/prometheus")
                                         .hasRole("ADMIN")

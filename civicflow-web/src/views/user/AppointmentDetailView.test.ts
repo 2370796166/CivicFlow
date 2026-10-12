@@ -21,7 +21,7 @@ const stubs = { RouterLink: true, StatePanel: true, ElTag: { template: '<span><s
 describe('AppointmentDetailView', () => {
   afterEach(() => { appointment.mockReset(); confirm.mockReset(); queue.mockReset(); checkInToken.mockReset(); checkIn.mockReset(); vi.useRealTimers() })
   it('signs in from the page and removes the QR credential after success', async () => {
-    vi.useFakeTimers()
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-01T01:00:00Z'))
     appointment.mockResolvedValue({ ...pending, status: 'CONFIRMED' })
     checkInToken.mockResolvedValue({ token: 'QR_PRIVATE_CANARY', expiresAt: new Date(Date.now() + 120000).toISOString() })
     checkIn.mockImplementation(async () => { appointment.mockResolvedValue({ ...pending, status: 'CHECKED_IN' }); return { ticketNo: 'A001' } })
@@ -36,7 +36,7 @@ describe('AppointmentDetailView', () => {
     wrapper.unmount()
   })
   it('observes external check-in and waits for delayed appointment completion', async () => {
-    vi.useFakeTimers()
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-02T01:00:00Z'))
     appointment.mockResolvedValue({ ...pending, status: 'CONFIRMED' })
     queue.mockResolvedValue([{ ticket: { appointmentId: '42', status: 'WAITING', ticketNo: 'A001' }, aheadCount: 0 }])
     const wrapper = mount(AppointmentDetailView, { global: { stubs } })
@@ -68,6 +68,26 @@ describe('AppointmentDetailView', () => {
     finish({ ...pending, status: 'CONFIRMED', version: 3 })
     await flushPromises()
     expect(wrapper.text()).toContain('已确认')
+    wrapper.unmount()
+  })
+  it('explains a future service date and prevents requesting an invalid check-in QR', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-02T13:00:00Z'))
+    appointment.mockResolvedValue({ ...pending, serviceDate: '2026-10-03', status: 'CONFIRMED' })
+    const wrapper = mount(AppointmentDetailView, { global: { stubs } }); await flushPromises()
+    expect(wrapper.text()).toContain('预约日期为 2026-10-03')
+    const button = wrapper.findAll('button').find(item => item.text() === '获取二维码')!
+    expect(button.attributes('disabled')).toBeDefined()
+    await button.trigger('click'); expect(checkInToken).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+  it('shows a Chinese explanation when today is outside the configured check-in window', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-02T13:00:00Z'))
+    appointment.mockResolvedValue({ ...pending, serviceDate: '2026-10-02', status: 'CONFIRMED' })
+    checkInToken.mockRejectedValue({ code: 'QUEUE_422_CHECKIN_WINDOW' })
+    const wrapper = mount(AppointmentDetailView, { global: { stubs } }); await flushPromises()
+    await wrapper.findAll('button').find(item => item.text() === '获取二维码')!.trigger('click'); await flushPromises()
+    expect(wrapper.text()).toContain('当前不在允许的签到时段内')
+    expect(checkInToken).toHaveBeenCalledWith('42', '3')
     wrapper.unmount()
   })
 })

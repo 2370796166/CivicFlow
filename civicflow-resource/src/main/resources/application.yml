@@ -15,10 +15,12 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info,prometheus,metrics
   endpoint:
     health:
       show-details: never
+      probes:
+        enabled: true
 
 civicflow:
   resource:
@@ -31,3 +33,13 @@ civicflow:
       key-version: ${CIVICFLOW_CONTACT_KEY_VERSION:1}
       encryption-key: ${CIVICFLOW_CONTACT_ENCRYPTION_KEY:}
       idempotency-hmac-key: ${CIVICFLOW_RESOURCE_IDEMPOTENCY_HMAC_KEY:}
+
+logging:
+  structured:
+    format:
+      console: ecs
+  level:
+    root: INFO
+    org.springframework.security: WARN
+    org.springframework.amqp: WARN
+    org.apache.ibatis: WARN

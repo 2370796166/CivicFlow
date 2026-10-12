@@ -376,7 +376,7 @@ class ReleaseHardeningIntegrationTest {
                 1,
                 count("SELECT COUNT(*) FROM message_consume_record WHERE event_id=?", e.eventId()));
         assertEquals(
-                1,
+                3,
                 count(
                         "SELECT COUNT(*) FROM outbox_event WHERE aggregate_id=(SELECT CAST(id AS CHAR) FROM appointment_order WHERE reservation_id=?)",
                         reservation));
@@ -758,7 +758,7 @@ class ReleaseHardeningIntegrationTest {
         }
         String payload =
                 text(
-                        "SELECT payload_json FROM outbox_event WHERE aggregate_id=(SELECT CAST(id AS CHAR) FROM appointment_order WHERE reservation_id=?)",
+                        "SELECT payload_json FROM outbox_event WHERE event_type='appointment.confirm.timeout.requested' AND aggregate_id=(SELECT CAST(id AS CHAR) FROM appointment_order WHERE reservation_id=?)",
                         reservation);
         Message message =
                 new Message(

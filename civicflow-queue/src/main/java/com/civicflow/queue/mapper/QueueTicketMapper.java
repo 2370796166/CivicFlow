@@ -7,6 +7,11 @@ import java.util.List;
 import org.apache.ibatis.annotations.Param;
 
 public interface QueueTicketMapper extends BaseMapper<QueueTicketEntity> {
+    List<QueueTicketEntity> nextForNotification(
+            @Param("outlet") long outlet,
+            @Param("date") LocalDate date,
+            @Param("items") List<Long> items);
+
     QueueTicketEntity selectByAppointment(@Param("appointmentId") long appointmentId);
 
     int createCounter(@Param("outletId") long outletId, @Param("date") LocalDate date);

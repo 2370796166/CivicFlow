@@ -57,3 +57,22 @@ else
 fi
 
 echo "Nacos local authentication and namespace initialization completed."
+
+# Non-secret notification tuning; runtime credentials stay in per-service /config.
+notification_config='civicflow:
+  notification:
+    recovery-enabled: true
+    recovery-delay-ms: 60000'
+for config_group in "$NACOS_GROUP" CIVICFLOW_DOCKER; do
+  response="$(curl -fsS -X POST "$base_url/v1/cs/configs" \
+    --data-urlencode "accessToken=$access_token" \
+    --data-urlencode "tenant=$NACOS_NAMESPACE" \
+    --data-urlencode "group=$config_group" \
+    --data-urlencode "dataId=civicflow-notification.yaml" \
+    --data-urlencode 'type=yaml' \
+    --data-urlencode "content=$notification_config")"
+  if [ "$response" != "true" ]; then
+    echo "Nacos notification configuration publish failed" >&2
+    exit 1
+  fi
+done

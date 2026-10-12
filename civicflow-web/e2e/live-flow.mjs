@@ -111,18 +111,38 @@ try {
   await expect(user.getByText('已完成', { exact: true })).toBeVisible({ timeout: 90000 })
   await expect(user.getByText('排队进度', { exact: true })).toHaveCount(0)
   await admin.getByRole('link', { name: '预约查询', exact: true }).click()
-  await admin.getByPlaceholder('用户编号').fill(userId)
+  await admin.getByText('更多筛选条件', { exact: true }).click()
+  await admin.getByLabel('用户 ID', { exact: true }).fill(userId)
   await admin.getByRole('button', { name: '查询预约', exact: true }).click()
-  const appointmentRow = admin.locator('.el-table__row').filter({ hasText: appointmentId })
+  const appointmentRow = admin.locator('tbody tr').filter({ hasText: appointmentId })
   await expect(appointmentRow).toContainText('已完成')
-  await appointmentRow.getByRole('link', { name: '操作记录', exact: true }).click()
-  await expect(admin.getByRole('heading', { name: '预约操作日志', exact: true })).toBeVisible()
-  await expect(admin.locator('.el-table__body')).toContainText('完成办理')
+  await appointmentRow.getByRole('button', { name: '查看详情', exact: true }).click()
+  await admin.getByRole('link', { name: '查看此预约的操作日志 →', exact: true }).click()
+  await expect(admin.getByRole('heading', { name: '操作日志', exact: true })).toBeVisible()
+  await expect(admin.locator('tbody')).toContainText('完成办理')
   if (seed.screenshotDir) {
     await admin.screenshot({ path: `${seed.screenshotDir}/audit.png`, fullPage: true })
     await staff.screenshot({ path: `${seed.screenshotDir}/workbench.png`, fullPage: true })
   }
   steps.push({ step: 'admin-query-and-audit-ui', status: 200 })
+  let notificationRows = []
+  await expect.poll(async () => {
+    const response = await user.request.get(`${base}/api/v1/user/notifications?page=1&size=20`, {
+      headers: { Authorization: `Bearer ${userToken}` },
+    })
+    expect(response.status()).toBe(200)
+    notificationRows = (await response.json()).data.items
+    return notificationRows.map(item => item.templateCode)
+  }, { timeout: 30000 }).toEqual(expect.arrayContaining([
+    'APPOINTMENT_CREATED', 'APPOINTMENT_CONFIRMED', 'QUEUE_CALLED',
+  ]))
+  await user.getByRole('link', { name: '站内通知', exact: true }).click()
+  const createdNotification = notificationRows.find(item => item.templateCode === 'APPOINTMENT_CREATED')
+  const createdNotice = user.locator('article').filter({ hasText: createdNotification.title })
+  await expect(createdNotice).toBeVisible()
+  await createdNotice.getByRole('button', { name: '标记已读', exact: true }).click()
+  await expect(createdNotice.getByText('未读', { exact: true })).toHaveCount(0)
+  steps.push({ step: 'notification-inbox', read: true })
   console.log(JSON.stringify({ appointmentId, reservationId, ticketId: ticket.id, sessionId: work.id, status: completed.status, frontend: 'PASS', steps }))
 } finally {
   await browser.close()

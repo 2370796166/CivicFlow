@@ -178,6 +178,7 @@ public class StockReconciliationServiceImpl implements StockReconciliationServic
         StockReconciliationRunEntity run = new StockReconciliationRunEntity();
         run.setTriggerType(trigger);
         run.setSlotScopeJson(write(Map.of("slotId", Long.toString(slotId))));
+        run.setSlotId(slotId);
         run.setStatus(ReconciliationRunStatus.RUNNING);
         run.setStartedAt(started);
         run.setActorId(actorId);
@@ -219,6 +220,10 @@ public class StockReconciliationServiceImpl implements StockReconciliationServic
             return report;
         } catch (RuntimeException exception) {
             run.setStatus(ReconciliationRunStatus.FAILED);
+            run.setFailureCode(
+                    exception instanceof BusinessException business
+                            ? business.errorCode().code()
+                            : CommonErrorCode.INTERNAL_ERROR.code());
             run.setCompletedAt(clock.instant());
             runs.updateById(run);
             throw exception;
@@ -242,7 +247,9 @@ public class StockReconciliationServiceImpl implements StockReconciliationServic
             }
             if (!slot.releaseAt().isAfter(detected) && slot.closeAt().isAfter(detected)) {
                 if (!ReconciliationSlotStatus.eligible(slot.status())) {
-                    throw new BusinessException(CommonErrorCode.VALIDATION);
+                    throw new BusinessException(
+                            com.civicflow.appointment.error.AppointmentErrorCode
+                                    .RECONCILIATION_STATUS);
                 }
                 StockReconciliationMapper.Facts facts =
                         factsMapper.selectFacts(
@@ -452,7 +459,12 @@ public class StockReconciliationServiceImpl implements StockReconciliationServic
                         safe,
                         detail.getRepairStatus());
             }
-            throw new BusinessException(CommonErrorCode.VALIDATION);
+            throw new BusinessException(
+                    slot.releaseAt().isAfter(detected)
+                            ? com.civicflow.appointment.error.AppointmentErrorCode
+                                    .RECONCILIATION_NOT_RELEASED
+                            : com.civicflow.appointment.error.AppointmentErrorCode
+                                    .RECONCILIATION_CLOSED);
         }
         throw new IllegalStateException("Reconciliation could not stabilize");
     }

@@ -321,7 +321,17 @@ class AppointmentReservationFlowIntegrationTest {
         assertEquals(1, count("appointment_order"));
         assertEquals(1, count("message_consume_record"));
         assertEquals(1, count("active_booking_guard"));
-        assertEquals(1, count("outbox_event"));
+        assertEquals(3, count("outbox_event"));
+        assertEquals(
+                1,
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM outbox_event WHERE event_type='appointment.notification.created'",
+                        Integer.class));
+        assertEquals(
+                1,
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM outbox_event WHERE event_type='appointment.notification.reminder'",
+                        Integer.class));
         assertEquals(
                 "PENDING_CONFIRM",
                 jdbcTemplate.queryForObject(

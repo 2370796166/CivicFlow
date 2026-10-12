@@ -62,8 +62,16 @@ public class GatewaySecurityConfig {
                                                 "/api/v1/auth/login",
                                                 "/api/v1/auth/refresh")
                                         .permitAll()
-                                        .pathMatchers(HttpMethod.GET, "/actuator/health")
+                                        .pathMatchers(
+                                                HttpMethod.GET,
+                                                "/actuator/health",
+                                                "/actuator/health/**")
                                         .permitAll()
+                                        .pathMatchers(
+                                                HttpMethod.GET,
+                                                "/actuator/metrics",
+                                                "/actuator/metrics/**")
+                                        .hasRole("ADMIN")
                                         .pathMatchers("/internal/**")
                                         .denyAll()
                                         .pathMatchers("/actuator/prometheus")

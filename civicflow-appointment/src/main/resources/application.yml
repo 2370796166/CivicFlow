@@ -43,10 +43,12 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info,prometheus,metrics
   endpoint:
     health:
       show-details: never
+      probes:
+        enabled: true
 
 civicflow:
   appointment:
@@ -93,3 +95,13 @@ civicflow:
       slot-delay: ${CIVICFLOW_STOCK_RECONCILIATION_SLOT_DELAY:50ms}
       page-size: ${CIVICFLOW_STOCK_RECONCILIATION_PAGE_SIZE:50}
       max-slots-per-run: ${CIVICFLOW_STOCK_RECONCILIATION_MAX_SLOTS:500}
+
+logging:
+  structured:
+    format:
+      console: ecs
+  level:
+    root: INFO
+    org.springframework.security: WARN
+    org.springframework.amqp: WARN
+    org.apache.ibatis: WARN

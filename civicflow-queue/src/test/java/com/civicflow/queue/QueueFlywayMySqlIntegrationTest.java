@@ -32,7 +32,7 @@ class QueueFlywayMySqlIntegrationTest {
                         .locations("classpath:db/migration")
                         .load()
                         .migrate();
-        assertEquals(4, migration.migrationsExecuted);
+        assertEquals(5, migration.migrationsExecuted);
         try (Connection setup = MYSQL.createConnection("");
                 Statement statement = setup.createStatement()) {
             statement.executeUpdate(

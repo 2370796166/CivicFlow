@@ -22,6 +22,12 @@
         <foreach collection="items" item="item" open="(" separator="," close=")">#{item}</foreach>
         ORDER BY priority DESC, checked_in_at ASC, id ASC LIMIT 1 FOR UPDATE SKIP LOCKED
     </select>
+    <select id="nextForNotification" resultType="com.civicflow.queue.entity.QueueTicketEntity">
+        SELECT * FROM queue_ticket WHERE outlet_id=#{outlet} AND service_date=#{date}
+        AND status='WAITING' AND item_id IN
+        <foreach collection="items" item="item" open="(" separator="," close=")">#{item}</foreach>
+        ORDER BY priority DESC, checked_in_at ASC, id ASC LIMIT 2
+    </select>
     <update id="transition">
         UPDATE queue_ticket SET status=#{to}, version=version+1, updated_at=UTC_TIMESTAMP(3),
         <choose>

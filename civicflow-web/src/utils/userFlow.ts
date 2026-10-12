@@ -13,3 +13,11 @@ export function remaining(expiresAt: string | null, now = Date.now()): string {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
 }
 export function canCancel(status: AppointmentStatus): boolean { return status === 'PENDING_CONFIRM' || status === 'CONFIRMED' }
+export function checkInDateHint(serviceDate: string, now = Date.now()): string {
+  const parts = new Intl.DateTimeFormat('en', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(now))
+  const value = (type: string) => parts.find(part => part.type === type)?.value
+  const today = `${value('year')}-${value('month')}-${value('day')}`
+  if (serviceDate > today) return `预约日期为 ${serviceDate}，请在预约当天的可签到时段获取二维码。`
+  if (serviceDate < today) return `预约日期 ${serviceDate} 已过，无法获取签到二维码。`
+  return ''
+}

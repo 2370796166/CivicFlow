@@ -116,7 +116,8 @@ public class AppointmentRabbitConfig {
     SimpleRabbitListenerContainerFactory reservationListenerContainerFactory(
             SimpleRabbitListenerContainerFactoryConfigurer configurer,
             org.springframework.amqp.rabbit.connection.ConnectionFactory connectionFactory,
-            AppointmentProperties properties) {
+            AppointmentProperties properties,
+            io.micrometer.core.instrument.MeterRegistry metrics) {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
         configurer.configure(factory, connectionFactory);
         Map<Class<? extends Throwable>, Boolean> retryable = new HashMap<>();
@@ -133,6 +134,11 @@ public class AppointmentRabbitConfig {
                                     // The default recoverer logs body/headers and does not reject
                                     // unacked MANUAL deliveries. The cause may contain sensitive
                                     // data.
+                                    metrics.counter(
+                                                    "civicflow_mq_consumer_dlq",
+                                                    "consumer",
+                                                    "reservation")
+                                            .increment();
                                     LOGGER.warn(
                                             "Message rejected after bounded retry type={}",
                                             cause.getClass().getSimpleName());

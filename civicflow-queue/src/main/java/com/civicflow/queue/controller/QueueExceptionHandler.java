@@ -36,7 +36,12 @@ public class QueueExceptionHandler {
                                 exception.errorCode(), null, RequestIdFilter.current(request)));
     }
 
-    @ExceptionHandler(org.springframework.web.bind.MethodArgumentNotValidException.class)
+    @ExceptionHandler({
+        org.springframework.web.bind.MethodArgumentNotValidException.class,
+        jakarta.validation.ConstraintViolationException.class,
+        org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class,
+        org.springframework.web.bind.MissingServletRequestParameterException.class
+    })
     ResponseEntity<ApiResponse<Void>> invalid(HttpServletRequest request) {
         return ResponseEntity.badRequest()
                 .body(

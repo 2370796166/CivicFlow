@@ -5,6 +5,7 @@ import com.civicflow.appointment.config.AppointmentProperties;
 import com.civicflow.appointment.entity.OutboxEventEntity;
 import com.civicflow.appointment.enums.OutboxStatus;
 import com.civicflow.appointment.mapper.OutboxEventMapper;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.concurrent.TimeUnit;
@@ -13,6 +14,7 @@ import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -22,6 +24,12 @@ public class CheckInClaimPublisher {
     private final RabbitTemplate rabbit;
     private final AppointmentProperties properties;
     private final Clock clock;
+    private MeterRegistry metrics;
+
+    @Autowired
+    void setMetrics(MeterRegistry metrics) {
+        this.metrics = metrics;
+    }
 
     public CheckInClaimPublisher(
             OutboxEventMapper outbox,
@@ -72,6 +80,15 @@ public class CheckInClaimPublisher {
                 Thread.currentThread().interrupt();
             } catch (Exception exception) {
                 // The same eventId is retried after the lease; no event content is logged.
+            }
+            if (!ack && metrics != null) {
+                metrics.counter(
+                                "civicflow_mq_publish_failures",
+                                "event",
+                                "checkin",
+                                "outcome",
+                                "failed")
+                        .increment();
             }
             OutboxEventEntity update = new OutboxEventEntity();
             update.setStatus(ack ? OutboxStatus.PUBLISHED : OutboxStatus.FAILED);

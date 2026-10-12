@@ -29,9 +29,15 @@ public class AppointmentExceptionHandler {
                                 exception.errorCode(), null, RequestIdFilter.current(request)));
     }
 
-    @ExceptionHandler(ConstraintViolationException.class)
+    @ExceptionHandler({
+        ConstraintViolationException.class,
+        org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class,
+        org.springframework.web.bind.MethodArgumentNotValidException.class,
+        org.springframework.http.converter.HttpMessageNotReadableException.class,
+        org.springframework.web.bind.MissingServletRequestParameterException.class
+    })
     ResponseEntity<ApiResponse<Void>> handleValidation(
-            ConstraintViolationException exception, HttpServletRequest request) {
+            Exception exception, HttpServletRequest request) {
         return ResponseEntity.badRequest()
                 .body(
                         ApiResponse.failure(

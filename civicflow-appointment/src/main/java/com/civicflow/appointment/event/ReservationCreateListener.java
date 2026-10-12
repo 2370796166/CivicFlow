@@ -11,10 +11,14 @@ import com.civicflow.appointment.service.ReservationRedisStateService;
 import com.civicflow.appointment.service.StockReleaseService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rabbitmq.client.Channel;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.io.IOException;
+import org.slf4j.MDC;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.retry.support.RetrySynchronizationManager;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -24,6 +28,12 @@ public class ReservationCreateListener {
     private final ReservationRedisStateService redisStateService;
     private final StockReleaseService stockReleaseService;
     private final AppointmentReservationRequestMapper requestMapper;
+    private MeterRegistry metrics;
+
+    @Autowired
+    void setMetrics(MeterRegistry metrics) {
+        this.metrics = metrics;
+    }
 
     public ReservationCreateListener(
             ObjectMapper objectMapper,
@@ -44,6 +54,17 @@ public class ReservationCreateListener {
             ackMode = "MANUAL")
     public void consume(Message message, Channel channel) throws IOException {
         ReservationRequestedEvent event = read(message);
+        var retry = RetrySynchronizationManager.getContext();
+        if (metrics != null && retry != null && retry.getRetryCount() > 0) {
+            metrics.counter("civicflow_mq_consumer_retries", "consumer", "reservation").increment();
+        }
+        try (MDC.MDCCloseable trace = MDC.putCloseable("traceId", event.traceId())) {
+            consumeEvent(message, channel, event);
+        }
+    }
+
+    private void consumeEvent(Message message, Channel channel, ReservationRequestedEvent event)
+            throws IOException {
         try {
             AppointmentCreationService.CreationResult result =
                     creationService.create(event, ReservationEventHash.compute(event));

@@ -31,4 +31,8 @@ public interface OutboxEventMapper extends BaseMapper<OutboxEventEntity> {
                     + " OR (status='PUBLISHING' AND updated_at<DATE_SUB(CURRENT_TIMESTAMP(3),INTERVAL 30 SECOND)))"
                     + " ORDER BY id LIMIT #{limit}")
     List<OutboxEventEntity> selectDueCheckIn(@Param("limit") int limit);
+
+    @Select(
+            "SELECT * FROM outbox_event WHERE event_type LIKE 'appointment.notification.%' AND ((status IN ('PENDING','FAILED') AND next_attempt_at<=CURRENT_TIMESTAMP(3)) OR (status='PUBLISHING' AND updated_at<DATE_SUB(CURRENT_TIMESTAMP(3),INTERVAL 30 SECOND))) ORDER BY id LIMIT #{limit}")
+    List<OutboxEventEntity> selectDueNotification(@Param("limit") int limit);
 }

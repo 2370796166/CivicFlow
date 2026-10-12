@@ -74,6 +74,17 @@ class GatewayApplicationTest {
     }
 
     @Test
+    void protectsMetricsFromOrdinaryUsers() {
+        webTestClient
+                .get()
+                .uri("/actuator/metrics")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer user-token")
+                .exchange()
+                .expectStatus()
+                .isForbidden();
+    }
+
+    @Test
     void loginIsWhitelistedAndFailsClosedWhenAuthHasNoInstance() {
         webTestClient
                 .post()
@@ -103,7 +114,7 @@ class GatewayApplicationTest {
     }
 
     @Test
-    void configuresOnlyTheFourPublicServiceRoutes() {
+    void configuresOnlyTheFivePublicServiceRoutes() {
         Map<String, URI> routes =
                 routeDefinitionLocator
                         .getRouteDefinitions()
@@ -114,8 +125,9 @@ class GatewayApplicationTest {
                 .containsEntry("civicflow-auth", URI.create("lb://civicflow-auth"))
                 .containsEntry("civicflow-resource", URI.create("lb://civicflow-resource"))
                 .containsEntry("civicflow-appointment", URI.create("lb://civicflow-appointment"))
-                .containsEntry("civicflow-queue", URI.create("lb://civicflow-queue"));
-        assertThat(routes).hasSize(4);
+                .containsEntry("civicflow-queue", URI.create("lb://civicflow-queue"))
+                .containsEntry("civicflow-notification", URI.create("lb://civicflow-notification"));
+        assertThat(routes).hasSize(5);
         assertThat(
                         routeDefinitionLocator.getRouteDefinitions().collectList().block().stream()
                                 .filter(route -> "civicflow-queue".equals(route.getId()))

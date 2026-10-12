@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rabbitmq.client.Channel;
 import java.io.IOException;
 import java.time.Clock;
+import org.slf4j.MDC;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
@@ -44,41 +45,44 @@ public class ConfirmTimeoutListener {
         } catch (Exception exception) {
             throw new PermanentReservationMessageException("Malformed timeout event", exception);
         }
-        if (event.schemaVersion() != 1
-                || event.eventVersion() != 1
-                || !AppointmentMessaging.TIMEOUT_EVENT_TYPE.equals(event.eventType())
-                || !"civicflow-appointment".equals(event.producer())
-                || event.eventId() == null
-                || event.traceId() == null
-                || event.payload() == null
-                || event.payload().reservationId() == null
-                || event.payload().appointmentId() == null
-                || event.payload().confirmDeadline() == null) {
-            throw new PermanentReservationMessageException("Unsupported timeout event");
-        }
-        if (!("timeout:" + event.payload().reservationId()).equals(event.idempotencyKey())) {
-            throw new PermanentReservationMessageException("Timeout idempotency key mismatch");
-        }
-        long id;
-        try {
-            id = Long.parseLong(event.payload().appointmentId());
-        } catch (NumberFormatException exception) {
-            throw new PermanentReservationMessageException("Invalid appointment id", exception);
-        }
-        AppointmentOrderEntity order = orders.selectById(id);
-        if (order == null
-                || !order.getReservationId().equals(event.payload().reservationId())
-                || !order.getConfirmDeadline().equals(event.payload().confirmDeadline())) {
-            throw new PermanentReservationMessageException(
-                    "Timeout event does not match appointment");
-        }
-        if (order.getStatus() == AppointmentStatus.PENDING_CONFIRM
-                && clock.instant().isBefore(order.getConfirmDeadline())) {
-            publisher.reschedule(event);
+        try (MDC.MDCCloseable trace =
+                MDC.putCloseable("traceId", event == null ? null : event.traceId())) {
+            if (event.schemaVersion() != 1
+                    || event.eventVersion() != 1
+                    || !AppointmentMessaging.TIMEOUT_EVENT_TYPE.equals(event.eventType())
+                    || !"civicflow-appointment".equals(event.producer())
+                    || event.eventId() == null
+                    || event.traceId() == null
+                    || event.payload() == null
+                    || event.payload().reservationId() == null
+                    || event.payload().appointmentId() == null
+                    || event.payload().confirmDeadline() == null) {
+                throw new PermanentReservationMessageException("Unsupported timeout event");
+            }
+            if (!("timeout:" + event.payload().reservationId()).equals(event.idempotencyKey())) {
+                throw new PermanentReservationMessageException("Timeout idempotency key mismatch");
+            }
+            long id;
+            try {
+                id = Long.parseLong(event.payload().appointmentId());
+            } catch (NumberFormatException exception) {
+                throw new PermanentReservationMessageException("Invalid appointment id", exception);
+            }
+            AppointmentOrderEntity order = orders.selectById(id);
+            if (order == null
+                    || !order.getReservationId().equals(event.payload().reservationId())
+                    || !order.getConfirmDeadline().equals(event.payload().confirmDeadline())) {
+                throw new PermanentReservationMessageException(
+                        "Timeout event does not match appointment");
+            }
+            if (order.getStatus() == AppointmentStatus.PENDING_CONFIRM
+                    && clock.instant().isBefore(order.getConfirmDeadline())) {
+                publisher.reschedule(event);
+                channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
+                return;
+            }
+            states.expire(id, event.traceId());
             channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
-            return;
         }
-        states.expire(id, event.traceId());
-        channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
     }
 }

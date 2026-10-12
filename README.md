@@ -311,7 +311,8 @@ docker compose -p $ideaComposeProject up -d --wait --wait-timeout 300 mysql redi
 | 2 | `Local Resource` | 网点、事项、窗口和号源 |
 | 3 | `Local Appointment` | 预约 |
 | 4 | `Local Queue` | 排队叫号 |
-| 5 | `Local Gateway` | 统一访问后端 |
+| 5 | `Local Notification` | 站内通知 |
+| 6 | `Local Gateway` | 统一访问后端 |
 
 **检查结果：** 每个服务的 Run 窗口出现 `Started ...Application`，且没有随后退出或报错。`Local Auth` 启动后，后台准备程序会自动创建初始管理员；已有账号和密码会保留。
 
@@ -453,3 +454,17 @@ npm.cmd --prefix civicflow-web run build
 后端部分测试会启动真实数据库和消息服务的容器。只想体验项目的话，不需要运行测试。
 
 </details>
+
+## main 整合版本：通知与管理查询
+
+本版本在预约规则、实时库存投影、异步建单和排队恢复的基础上，整合独立的 `civicflow-notification` 服务（本机端口 `8085`）。通知拥有自己的 `civicflow_notification` 数据库，通过预约和排队的事务 outbox 接收事件，提供站内通知、可选通知偏好、失败记录和管理员审计重放。短信、邮件和微信订阅消息没有接入外部供应商。
+
+用户的「站内通知」使用 `/api/v1/user/notifications`，包含预约创建、确认/取消、确认截止前提醒、叫号、即将到号和过号等通知。既有 `/api/v1/user/messages` 预约消息接口与「预约消息记录」页面保留，兼容原客户端；两者分页、已读和来源不同，不应在客户端混成同一份列表或合并未读数量。
+
+管理员预约查询增加关键词、事项、号源和日期范围筛选、用户姓名及办理时间线；既有 `serviceDate` 查询参数和 `/api/v1/admin/appointment-operation-logs` 保持兼容。跨服务日志提供 `/api/v1/admin/operation-logs/{auth|resource|appointment|queue|stock}`；整合后的对账查询使用 `/api/v1/admin/reconciliations`，旧的分页对账明细接口保留在 `/api/v1/admin/operations/reconciliations`。
+
+从五服务版本升级时，保留现有 `.env`、`.local/dev` 密钥和数据库卷，在 `.env` 中补齐 `.env.example` 列出的四个 `CIVICFLOW_NOTIFICATION_DB_*` 账号/密码变量。Compose 的 `notification-db-init` 为已有 MySQL 卷创建独立通知库和账号；本机 `prepare` 也包含该步骤。随后按既有启动方式重建应用。不要删除原有数据卷或重新生成密钥。
+
+已发布迁移保持原样：预约服务沿用 V6 站内消息迁移并追加 V7 管理查询迁移；排队服务沿用 V4 同步租约迁移并追加 V5 审计索引；auth/resource 分别追加 V4/V5 审计索引；通知服务从 V1 初始化。若运行环境已经使用另一套未发布迁移历史，须先核对其 Flyway 历史和数据库结构，不能直接套用本版本或篡改已执行迁移。
+
+开发工具位于 `deploy/local`；新增本地合成数据及诊断脚本位于 `deploy/tests`，需要运行环境中的受控凭据，不在源码中存放真实凭据。这些工具不会在正常应用启动时自动执行。隔离测试使用 Testcontainers；不能把单元测试或本机验证当作生产发布验收。

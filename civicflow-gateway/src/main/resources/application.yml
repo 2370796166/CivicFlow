@@ -11,20 +11,24 @@ spring:
             - id: civicflow-auth
               uri: lb://civicflow-auth
               predicates:
-                - Path=/api/v1/admin/audit/auth,/api/v1/auth/**,/api/v1/user/me,/api/v1/admin/users,/api/v1/admin/users/**
+                - Path=/api/v1/admin/audit/auth,/api/v1/admin/operation-logs/auth,/api/v1/auth/**,/api/v1/user/me,/api/v1/admin/users,/api/v1/admin/users/**
             - id: civicflow-resource
               uri: lb://civicflow-resource
               predicates:
-                - Path=/api/v1/admin/audit/resource,/api/v1/user/outlets,/api/v1/user/outlets/**,/api/v1/user/slots,/api/v1/staff/scopes,/api/v1/admin/outlets,/api/v1/admin/outlets/**,/api/v1/admin/items,/api/v1/admin/items/**,/api/v1/admin/windows,/api/v1/admin/windows/**,/api/v1/admin/slots,/api/v1/admin/slots/**
+                - Path=/api/v1/admin/audit/resource,/api/v1/admin/operation-logs/resource,/api/v1/user/outlets,/api/v1/user/outlets/**,/api/v1/user/slots,/api/v1/staff/scopes,/api/v1/admin/outlets,/api/v1/admin/outlets/**,/api/v1/admin/items,/api/v1/admin/items/**,/api/v1/admin/windows,/api/v1/admin/windows/**,/api/v1/admin/slots,/api/v1/admin/slots/**
             - id: civicflow-appointment
               uri: lb://civicflow-appointment
               predicates:
-                - Path=/api/v1/user/slots/availability,/api/v1/user/slots/rules,/api/v1/user/messages,/api/v1/user/messages/**,/api/v1/admin/operation-logs,/api/v1/admin/operations/**,/api/v1/user/reservations,/api/v1/user/reservations/**,/api/v1/user/appointments,/api/v1/user/appointments/**,/api/v1/admin/appointments,/api/v1/admin/appointments/**,/api/v1/admin/appointment-operation-logs,/api/v1/admin/reconciliations,/api/v1/admin/reconciliations/**,/api/v1/admin/stock/slots/**
+                - Path=/api/v1/user/slots/availability,/api/v1/admin/operation-logs/appointment,/api/v1/admin/operation-logs/stock,/api/v1/user/slots/rules,/api/v1/user/messages,/api/v1/user/messages/**,/api/v1/admin/operation-logs,/api/v1/admin/operations/**,/api/v1/user/reservations,/api/v1/user/reservations/**,/api/v1/user/appointments,/api/v1/user/appointments/**,/api/v1/admin/appointments,/api/v1/admin/appointments/**,/api/v1/admin/appointment-operation-logs,/api/v1/admin/reconciliations,/api/v1/admin/reconciliations/**,/api/v1/admin/stock/slots/**
             - id: civicflow-queue
               uri: lb://civicflow-queue
               predicates:
-                - Path=/api/v1/admin/audit/queue,/api/v1/user/check-ins,/api/v1/staff/check-ins,/api/v1/user/queue-tickets/**,/api/v1/staff/work-sessions,/api/v1/staff/work-sessions/**,/api/v1/staff/queue-tickets/**,/api/v1/admin/queues/**
+                - Path=/api/v1/admin/audit/queue,/api/v1/admin/operation-logs/queue,/api/v1/user/check-ins,/api/v1/staff/check-ins,/api/v1/user/queue-tickets/**,/api/v1/staff/work-sessions,/api/v1/staff/work-sessions/**,/api/v1/staff/queue-tickets/**,/api/v1/admin/queues/**
 
+            - id: civicflow-notification
+              uri: lb://civicflow-notification
+              predicates:
+                - Path=/api/v1/user/notifications,/api/v1/user/notifications/**,/api/v1/user/notification-preferences,/api/v1/admin/notifications/**
 server:
   port: ${CIVICFLOW_GATEWAY_PORT:8080}
 
@@ -51,7 +55,19 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info,prometheus,metrics
   endpoint:
     health:
       show-details: never
+      probes:
+        enabled: true
+
+logging:
+  structured:
+    format:
+      console: ecs
+  level:
+    root: INFO
+    org.springframework.security: WARN
+    org.springframework.amqp: WARN
+    org.apache.ibatis: WARN

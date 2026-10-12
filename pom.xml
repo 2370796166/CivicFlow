@@ -19,6 +19,7 @@
         <module>civicflow-resource</module>
         <module>civicflow-appointment</module>
         <module>civicflow-queue</module>
+        <module>civicflow-notification</module>
     </modules>
 
     <properties>
@@ -126,4 +127,3 @@
         </plugins>
     </build>
 </project>
-

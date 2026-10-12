@@ -22,6 +22,8 @@ public class StockReconciliationRunEntity {
     private ReconciliationTriggerType triggerType;
 
     private String slotScopeJson;
+    private Long slotId;
+    private String failureCode;
 
     @TableField(typeHandler = EnumTypeHandler.class)
     private ReconciliationRunStatus status;

@@ -82,4 +82,11 @@ create_service_database \
   "$CIVICFLOW_QUEUE_DB_MIGRATION_USERNAME" \
   "$CIVICFLOW_QUEUE_DB_MIGRATION_PASSWORD"
 
+create_service_database \
+  civicflow_notification \
+  "$CIVICFLOW_NOTIFICATION_DB_APP_USERNAME" \
+  "$CIVICFLOW_NOTIFICATION_DB_APP_PASSWORD" \
+  "$CIVICFLOW_NOTIFICATION_DB_MIGRATION_USERNAME" \
+  "$CIVICFLOW_NOTIFICATION_DB_MIGRATION_PASSWORD"
+
 echo "CivicFlow service schemas and least-privilege local accounts are ready."

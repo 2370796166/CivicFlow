@@ -1,0 +1,24 @@
+spring:
+  config:
+    import: "optional:nacos:${spring.application.name}.yaml?group=${NACOS_GROUP}"
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR}
+      username: ${NACOS_USERNAME}
+      password: ${NACOS_PASSWORD}
+      discovery:
+        namespace: ${NACOS_NAMESPACE}
+        group: ${NACOS_GROUP}
+      config:
+        namespace: ${NACOS_NAMESPACE}
+        group: ${NACOS_GROUP}
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD}
+
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: readinessState

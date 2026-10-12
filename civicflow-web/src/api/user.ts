@@ -20,7 +20,7 @@ export const userApi = {
     return result
   },
   async reserve(slotId: string, key: string): Promise<ReservationCreate> {
-    try { return await body(api.post<ApiResponse<ReservationCreate>>('/user/appointments/reservations', { slotId }, { headers: { 'Idempotency-Key': key } })) }
+    try { return await body(api.post<ApiResponse<ReservationCreate>>('/user/appointments/reservations', { slotId }, { headers: { 'Idempotency-Key': key }, suppressErrorToast: true })) }
     catch (error) {
       // A 503 may still include a stable reservationId. Its projection must be queried.
       const failure = error as ApiError
@@ -33,7 +33,7 @@ export const userApi = {
   appointment(id: string) { return body(api.get<ApiResponse<Appointment>>(`/user/appointments/${id}`)) },
   confirm(id: string, version: number, key: string) { return body(api.post<ApiResponse<Appointment>>(`/user/appointments/${id}/confirm`, { version }, { headers: { 'Idempotency-Key': key } })) },
   cancel(id: string, version: number, key: string) { return body(api.post<ApiResponse<Appointment>>(`/user/appointments/${id}/cancel`, { reason: 'USER_REQUEST', version }, { headers: { 'Idempotency-Key': key } })) },
-  checkInToken(id: string, outletId: string) { return body(api.post<ApiResponse<CheckInToken>>(`/user/appointments/${id}/check-in-token`, { outletId })) },
+  checkInToken(id: string, outletId: string) { return body(api.post<ApiResponse<CheckInToken>>(`/user/appointments/${id}/check-in-token`, { outletId }, { suppressErrorToast: true })) },
   checkIn(outletId: string, checkInToken: string) { return body(api.post<ApiResponse<QueueTicket>>('/user/check-ins', { outletId, checkInToken }, { suppressErrorToast: true })) },
   queue(appointmentId: string) { return body(api.get<ApiResponse<QueueProgress[]>>('/user/queue-tickets/current', { params: { appointmentId } })) },
 }

@@ -3,6 +3,13 @@ package com.civicflow.appointment.error;
 import com.civicflow.common.api.GlobalErrorCode;
 
 public enum AppointmentErrorCode implements GlobalErrorCode {
+    RECONCILIATION_NOT_RELEASED(
+            "APPT_422_RECONCILIATION_NOT_RELEASED", "Slot has not been released yet"),
+    RECONCILIATION_CLOSED(
+            "APPT_422_RECONCILIATION_CLOSED",
+            "Slot service period has ended; view historical reports instead"),
+    RECONCILIATION_STATUS(
+            "APPT_422_RECONCILIATION_STATUS", "Slot status does not allow reconciliation"),
     DUP_ACTIVE("APPT_409_DUP_ACTIVE", "An active appointment already exists"),
     STOCK_EMPTY("APPT_409_STOCK_EMPTY", "No stock remains for the selected slot"),
     STATE_CONFLICT("APPT_409_STATE_CONFLICT", "Appointment state conflicts with this operation"),

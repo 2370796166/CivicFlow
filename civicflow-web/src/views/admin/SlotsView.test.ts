@@ -11,6 +11,7 @@ vi.mock('element-plus', () => ({ ElMessageBox: { confirm: (...args: unknown[]) =
 
 const outletId = '2106005880956557825', itemId = '2106005882233079006'
 const stubs = {
+  RouterLink: true,
   AdminResourceSelect: {
     props: ['modelValue', 'kind'], emits: ['update:modelValue', 'selected'],
     data: () => ({ outletId, itemId }),

@@ -55,7 +55,9 @@ class TrustedHeaderFilterTest {
         assertThat(headers.getFirst("X-User-Id")).isEqualTo("1001");
         assertThat(headers.getFirst("X-User-Roles")).isEqualTo("USER");
         assertThat(headers.getFirst("X-Service-Name")).isNull();
-        assertThat(headers.getFirst("traceparent")).isNull();
+        assertThat(headers.getFirst("traceparent")).matches("00-[0-9a-f]{32}-[0-9a-f]{16}-01");
+        assertThat(headers.getFirst("traceparent"))
+                .startsWith("00-" + headers.getFirst("X-Request-Id").replace("-", "") + "-");
         assertThat(headers.getFirst("X-Request-Id")).isNotBlank().isNotEqualTo("forged-request");
         assertThat(exchange.getResponse().getHeaders().getFirst("X-Request-Id"))
                 .isEqualTo(headers.getFirst("X-Request-Id"));

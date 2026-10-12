@@ -3,11 +3,15 @@ package com.civicflow.auth.service;
 import com.civicflow.auth.dto.request.ChangeUserStatusRequest;
 import com.civicflow.auth.dto.request.CreateUserRequest;
 import com.civicflow.auth.dto.request.ReplaceUserRolesRequest;
+import com.civicflow.auth.dto.response.UserNameResponse;
 import com.civicflow.auth.dto.response.UserResponse;
 import com.civicflow.auth.enums.UserStatus;
 import com.civicflow.common.api.PageResponse;
+import java.util.List;
 
 public interface UserAdminService {
+    List<UserNameResponse> userNames(long actorUserId, int actorTokenVersion, List<Long> ids);
+
     PageResponse<UserResponse> listUsers(
             long actorUserId,
             int actorTokenVersion,

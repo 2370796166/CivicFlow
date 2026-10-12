@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { AdminAppointment, AppointmentLog } from '@/types/admin'
+import type { AdminAppointment, AppointmentLog, AppointmentQuery, LogQuery, LogSource, OperationLog, ReconciliationHistory, ReconciliationQuery } from '@/types/admin'
 import type { ApiResponse, Page } from '@/types/api'
 import type { AdminItem, AdminOutlet, AdminResource, AdminSlot, AdminUser, AdminWindow, ReconciliationReport, ResourceKind, ResourceStatus, SlotBatchResult, SlotStatus, WindowStaff } from '@/types/admin'
 
@@ -7,9 +7,13 @@ async function body<T>(request: Promise<{ data: ApiResponse<T> }>): Promise<T> {
 const key = () => ({ 'Idempotency-Key': crypto.randomUUID() })
 const quiet = { suppressErrorToast: true }
 export const adminApi = {
-  appointments(params: { page: number; size?: number; userId?: string; outletId?: string; serviceDate?: string; status?: string }) { return body(api.get<ApiResponse<Page<AdminAppointment>>>('/admin/appointments', { params, ...quiet })) },
+  appointments(params: AppointmentQuery & { serviceDate?: string }) { return body(api.get<ApiResponse<Page<AdminAppointment>>>('/admin/appointments', { params, ...quiet })) },
   appointment(id: string) { return body(api.get<ApiResponse<AdminAppointment>>(`/admin/appointments/${id}`, quiet)) },
   appointmentLogs(params: { page: number; size?: number; appointmentId?: string; operation?: string }) { return body(api.get<ApiResponse<Page<AppointmentLog>>>('/admin/appointment-operation-logs', { params, ...quiet })) },
+  userNames(ids: string[]) { return body(api.get<ApiResponse<{ id: string; displayName: string | null }[]>>('/admin/users/names', { params: { ids: [...new Set(ids)].join(',') }, ...quiet })) },
+  operationLogs(source: LogSource, params: LogQuery) { return body(api.get<ApiResponse<Page<OperationLog>>>(`/admin/operation-logs/${source}`, { params, ...quiet })) },
+  reconciliations(params: ReconciliationQuery) { return body(api.get<ApiResponse<Page<ReconciliationHistory>>>('/admin/reconciliations', { params, ...quiet })) },
+  reconciliation(id: string) { return body(api.get<ApiResponse<ReconciliationHistory>>(`/admin/reconciliations/${id}`, quiet)) },
   resources(kind: ResourceKind, params: { page: number; size?: number; keyword?: string; status?: string; outletId?: string }) { return body(api.get<ApiResponse<Page<AdminResource>>>(`/admin/${kind}`, { params, ...quiet })) },
   resource(kind: ResourceKind, id: string) { return body(api.get<ApiResponse<AdminResource>>(`/admin/${kind}/${id}`, quiet)) },
   createResource(kind: ResourceKind, value: Record<string, unknown>) { return body(api.post<ApiResponse<AdminResource>>(`/admin/${kind}`, value, { headers: key(), ...quiet })) },

@@ -106,7 +106,16 @@ public class ResourceQueryServiceImpl implements ResourceQueryService {
                 slot.getTotalQuota(),
                 slot.getReleaseAt(),
                 closeAt,
-                status);
+                status,
+                slot.getStatus(),
+                !now.isBefore(closeAt)
+                        ? "ENDED"
+                        : switch (status) {
+                            case "BOOKABLE" -> "OPEN";
+                            case "UPCOMING" -> "NOT_RELEASED";
+                            default -> status;
+                        },
+                "BOOKABLE".equals(status));
     }
 
     @Override

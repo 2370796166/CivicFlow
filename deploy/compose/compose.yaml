@@ -53,6 +53,10 @@ services:
       CIVICFLOW_QUEUE_DB_APP_PASSWORD: ${CIVICFLOW_QUEUE_DB_APP_PASSWORD:?Set CIVICFLOW_QUEUE_DB_APP_PASSWORD}
       CIVICFLOW_QUEUE_DB_MIGRATION_USERNAME: ${CIVICFLOW_QUEUE_DB_MIGRATION_USERNAME:?Set CIVICFLOW_QUEUE_DB_MIGRATION_USERNAME}
       CIVICFLOW_QUEUE_DB_MIGRATION_PASSWORD: ${CIVICFLOW_QUEUE_DB_MIGRATION_PASSWORD:?Set CIVICFLOW_QUEUE_DB_MIGRATION_PASSWORD}
+      CIVICFLOW_NOTIFICATION_DB_APP_USERNAME: ${CIVICFLOW_NOTIFICATION_DB_APP_USERNAME:?Set CIVICFLOW_NOTIFICATION_DB_APP_USERNAME}
+      CIVICFLOW_NOTIFICATION_DB_APP_PASSWORD: ${CIVICFLOW_NOTIFICATION_DB_APP_PASSWORD:?Set CIVICFLOW_NOTIFICATION_DB_APP_PASSWORD}
+      CIVICFLOW_NOTIFICATION_DB_MIGRATION_USERNAME: ${CIVICFLOW_NOTIFICATION_DB_MIGRATION_USERNAME:?Set CIVICFLOW_NOTIFICATION_DB_MIGRATION_USERNAME}
+      CIVICFLOW_NOTIFICATION_DB_MIGRATION_PASSWORD: ${CIVICFLOW_NOTIFICATION_DB_MIGRATION_PASSWORD:?Set CIVICFLOW_NOTIFICATION_DB_MIGRATION_PASSWORD}
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_0900_ai_ci
@@ -163,17 +167,35 @@ services:
       NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
       NACOS_PASSWORD: ${NACOS_PASSWORD:?Set NACOS_PASSWORD in deploy/compose/.env}
       NACOS_NAMESPACE: ${NACOS_NAMESPACE:-dev}
+      NACOS_GROUP: ${NACOS_GROUP:-CIVICFLOW_GROUP}
     volumes:
       - ./nacos/init-nacos.sh:/opt/civicflow/init-nacos.sh:ro
     entrypoint: ["/bin/sh", "/opt/civicflow/init-nacos.sh"]
     networks:
       - civicflow-local
 
+  notification-db-init:
+    image: mysql:8.4.11
+    logging: *local-logging
+    environment:
+      MYSQL_PWD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
+      CIVICFLOW_NOTIFICATION_DB_APP_USERNAME: ${CIVICFLOW_NOTIFICATION_DB_APP_USERNAME:?Set CIVICFLOW_NOTIFICATION_DB_APP_USERNAME}
+      CIVICFLOW_NOTIFICATION_DB_APP_PASSWORD: ${CIVICFLOW_NOTIFICATION_DB_APP_PASSWORD:?Set CIVICFLOW_NOTIFICATION_DB_APP_PASSWORD}
+      CIVICFLOW_NOTIFICATION_DB_MIGRATION_USERNAME: ${CIVICFLOW_NOTIFICATION_DB_MIGRATION_USERNAME:?Set CIVICFLOW_NOTIFICATION_DB_MIGRATION_USERNAME}
+      CIVICFLOW_NOTIFICATION_DB_MIGRATION_PASSWORD: ${CIVICFLOW_NOTIFICATION_DB_MIGRATION_PASSWORD:?Set CIVICFLOW_NOTIFICATION_DB_MIGRATION_PASSWORD}
+    volumes:
+      - ./mysql/init/02-ensure-notification-database.sh:/opt/civicflow/ensure-notification-database.sh:ro
+    entrypoint: ["/bin/bash", "/opt/civicflow/ensure-notification-database.sh"]
+    depends_on:
+      mysql: {condition: service_healthy}
+    networks: [civicflow-local]
+
   bootstrap:
     <<: *bootstrap
     command: [init]
     depends_on:
       mysql: {condition: service_healthy}
+      notification-db-init: {condition: service_completed_successfully}
       nacos-init: {condition: service_completed_successfully}
     volumes:
       - ../../.local/dev:/state
@@ -181,6 +203,7 @@ services:
       - resource-config:/output/resource
       - appointment-config:/output/appointment
       - queue-config:/output/queue
+      - notification-config:/output/notification
       - gateway-config:/output/gateway
 
   service-identity:
@@ -202,8 +225,7 @@ services:
     image: civicflow/auth:local
     build:
       context: ../..
-      dockerfile: deploy/docker/backend.Dockerfile
-      args: {SERVICE: auth}
+      dockerfile: deploy/docker/auth.Dockerfile
     environment: {HEALTH_PORT: "8081"}
     volumes: ["auth-config:/config:ro"]
     depends_on:
@@ -222,8 +244,7 @@ services:
     image: civicflow/resource:local
     build:
       context: ../..
-      dockerfile: deploy/docker/backend.Dockerfile
-      args: {SERVICE: resource}
+      dockerfile: deploy/docker/resource.Dockerfile
     environment: {HEALTH_PORT: "8082"}
     volumes: ["resource-config:/config:ro"]
     depends_on:
@@ -234,8 +255,7 @@ services:
     image: civicflow/appointment:local
     build:
       context: ../..
-      dockerfile: deploy/docker/backend.Dockerfile
-      args: {SERVICE: appointment}
+      dockerfile: deploy/docker/appointment.Dockerfile
     environment: {HEALTH_PORT: "8083"}
     volumes: ["appointment-config:/config:ro"]
     depends_on:
@@ -249,25 +269,35 @@ services:
     image: civicflow/queue:local
     build:
       context: ../..
-      dockerfile: deploy/docker/backend.Dockerfile
-      args: {SERVICE: queue}
+      dockerfile: deploy/docker/queue.Dockerfile
     environment: {HEALTH_PORT: "8084"}
     volumes: ["queue-config:/config:ro"]
     depends_on:
       appointment: {condition: service_healthy}
+
+  notification:
+    <<: *app
+    image: civicflow/notification:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/notification.Dockerfile
+    environment: {HEALTH_PORT: "8085"}
+    volumes: ["notification-config:/config:ro"]
+    depends_on:
+      queue: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
 
   gateway:
     <<: *app
     image: civicflow/gateway:local
     build:
       context: ../..
-      dockerfile: deploy/docker/backend.Dockerfile
-      args: {SERVICE: gateway}
+      dockerfile: deploy/docker/gateway.Dockerfile
     environment: {HEALTH_PORT: "8080"}
     volumes: ["gateway-config:/config:ro"]
     ports: ["127.0.0.1:${GATEWAY_PORT:-8080}:8080"]
     depends_on:
-      queue: {condition: service_healthy}
+      notification: {condition: service_healthy}
       admin-init: {condition: service_completed_successfully}
 
   web:
@@ -277,11 +307,11 @@ services:
       dockerfile: deploy/docker/web.Dockerfile
     restart: unless-stopped
     logging: *local-logging
-    ports: ["127.0.0.1:${WEB_PORT:-5173}:80"]
+    ports: ["127.0.0.1:${WEB_PORT:-5173}:8080"]
     depends_on:
       gateway: {condition: service_healthy}
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -297,6 +327,7 @@ volumes:
   resource-config:
   appointment-config:
   queue-config:
+  notification-config:
   gateway-config:
   mysql-data:
     name: civicflow-mysql-data

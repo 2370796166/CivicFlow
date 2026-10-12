@@ -15,7 +15,8 @@ const ResourcesView = () => import('@/views/admin/ResourcesView.vue')
 const SlotsView = () => import('@/views/admin/SlotsView.vue')
 const UsersView = () => import('@/views/admin/UsersView.vue')
 const ReconciliationView = () => import('@/views/admin/ReconciliationView.vue')
-const AppointmentQueryView = () => import('@/views/admin/AppointmentQueryView.vue')
+const AdminAppointmentsView = () => import('@/views/admin/AdminAppointmentsView.vue')
+const NotificationsView = () => import('@/views/user/NotificationsView.vue')
 const MessagesView = () => import('@/views/user/MessagesView.vue')
 const AdminQueriesView = () => import('@/views/admin/AdminQueriesView.vue')
 const OperationLogsView = () => import('@/views/admin/OperationLogsView.vue')
@@ -36,6 +37,7 @@ const routes: RouteRecordRaw[] = [
     { path: 'outlets/:outletId', name: 'user-outlet', component: ExploreView },
     { path: 'messages', name: 'user-messages', component: MessagesView },
     { path: 'appointments', name: 'user-appointments', component: AppointmentsView },
+    { path: 'notifications', name: 'user-notifications', component: NotificationsView },
     { path: 'appointments/:appointmentId', name: 'user-appointment', component: AppointmentDetailView },
     { path: 'reservations/:reservationId', name: 'user-reservation', component: ReservationView },
   ] },
@@ -48,7 +50,7 @@ const routes: RouteRecordRaw[] = [
     { path: 'slots', name: 'admin-slots', component: SlotsView },
     { path: 'users', name: 'admin-users', component: UsersView },
     { path: 'reconciliations', name: 'admin-reconciliations', component: ReconciliationView },
-    { path: 'appointments', name: 'admin-appointments', component: AppointmentQueryView },
+    { path: 'appointments', name: 'admin-appointments', component: AdminAppointmentsView },
     { path: 'operation-logs', name: 'admin-operation-logs', component: OperationLogsView },
     { path: 'audit', name: 'admin-audit', component: AdminQueriesView, props: { kind: 'operation-logs' } },
     { path: 'reconciliation-history', name: 'admin-reconciliation-history', component: AdminQueriesView, props: { kind: 'reconciliations' } },
