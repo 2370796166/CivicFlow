@@ -37,6 +37,8 @@ public class GatewayProperties {
         private int loginPermits = 10;
         private Duration loginWindow = Duration.ofMinutes(1);
         private int reservationPermits = 3;
+        private int userReservationPermits = 5;
+        private int slotReservationPermits = 500;
         private Duration reservationWindow = Duration.ofSeconds(1);
         private int maxReservationBodyBytes = 4096;
     }

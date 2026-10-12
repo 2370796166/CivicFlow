@@ -16,6 +16,8 @@ const SlotsView = () => import('@/views/admin/SlotsView.vue')
 const UsersView = () => import('@/views/admin/UsersView.vue')
 const ReconciliationView = () => import('@/views/admin/ReconciliationView.vue')
 const AppointmentQueryView = () => import('@/views/admin/AppointmentQueryView.vue')
+const MessagesView = () => import('@/views/user/MessagesView.vue')
+const AdminQueriesView = () => import('@/views/admin/AdminQueriesView.vue')
 const OperationLogsView = () => import('@/views/admin/OperationLogsView.vue')
 
 export const portals: { role: Role; path: string; title: string; subtitle: string }[] = [
@@ -32,6 +34,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/user', component: AppLayout, meta: { role: 'USER' }, children: [
     { path: '', name: 'user', component: ExploreView },
     { path: 'outlets/:outletId', name: 'user-outlet', component: ExploreView },
+    { path: 'messages', name: 'user-messages', component: MessagesView },
     { path: 'appointments', name: 'user-appointments', component: AppointmentsView },
     { path: 'appointments/:appointmentId', name: 'user-appointment', component: AppointmentDetailView },
     { path: 'reservations/:reservationId', name: 'user-reservation', component: ReservationView },
@@ -47,6 +50,10 @@ const routes: RouteRecordRaw[] = [
     { path: 'reconciliations', name: 'admin-reconciliations', component: ReconciliationView },
     { path: 'appointments', name: 'admin-appointments', component: AppointmentQueryView },
     { path: 'operation-logs', name: 'admin-operation-logs', component: OperationLogsView },
+    { path: 'audit', name: 'admin-audit', component: AdminQueriesView, props: { kind: 'operation-logs' } },
+    { path: 'reconciliation-history', name: 'admin-reconciliation-history', component: AdminQueriesView, props: { kind: 'reconciliations' } },
+    { path: 'statistics', name: 'admin-statistics', component: AdminQueriesView, props: { kind: 'statistics' } },
+    { path: 'syncs', name: 'admin-syncs', component: AdminQueriesView, props: { kind: 'syncs' } },
   ] },
   { path: '/403', name: 'forbidden', component: ForbiddenView },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView, meta: { public: true } },

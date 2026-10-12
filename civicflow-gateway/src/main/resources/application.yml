@@ -11,19 +11,19 @@ spring:
             - id: civicflow-auth
               uri: lb://civicflow-auth
               predicates:
-                - Path=/api/v1/auth/**,/api/v1/user/me,/api/v1/admin/users,/api/v1/admin/users/**
+                - Path=/api/v1/admin/audit/auth,/api/v1/auth/**,/api/v1/user/me,/api/v1/admin/users,/api/v1/admin/users/**
             - id: civicflow-resource
               uri: lb://civicflow-resource
               predicates:
-                - Path=/api/v1/user/outlets,/api/v1/user/outlets/**,/api/v1/user/slots,/api/v1/staff/scopes,/api/v1/admin/outlets,/api/v1/admin/outlets/**,/api/v1/admin/items,/api/v1/admin/items/**,/api/v1/admin/windows,/api/v1/admin/windows/**,/api/v1/admin/slots,/api/v1/admin/slots/**
+                - Path=/api/v1/admin/audit/resource,/api/v1/user/outlets,/api/v1/user/outlets/**,/api/v1/user/slots,/api/v1/staff/scopes,/api/v1/admin/outlets,/api/v1/admin/outlets/**,/api/v1/admin/items,/api/v1/admin/items/**,/api/v1/admin/windows,/api/v1/admin/windows/**,/api/v1/admin/slots,/api/v1/admin/slots/**
             - id: civicflow-appointment
               uri: lb://civicflow-appointment
               predicates:
-                - Path=/api/v1/user/reservations,/api/v1/user/reservations/**,/api/v1/user/appointments,/api/v1/user/appointments/**,/api/v1/admin/appointments,/api/v1/admin/appointments/**,/api/v1/admin/appointment-operation-logs,/api/v1/admin/reconciliations,/api/v1/admin/reconciliations/**,/api/v1/admin/stock/slots/**
+                - Path=/api/v1/user/slots/availability,/api/v1/user/slots/rules,/api/v1/user/messages,/api/v1/user/messages/**,/api/v1/admin/operation-logs,/api/v1/admin/operations/**,/api/v1/user/reservations,/api/v1/user/reservations/**,/api/v1/user/appointments,/api/v1/user/appointments/**,/api/v1/admin/appointments,/api/v1/admin/appointments/**,/api/v1/admin/appointment-operation-logs,/api/v1/admin/reconciliations,/api/v1/admin/reconciliations/**,/api/v1/admin/stock/slots/**
             - id: civicflow-queue
               uri: lb://civicflow-queue
               predicates:
-                - Path=/api/v1/user/check-ins,/api/v1/staff/check-ins,/api/v1/user/queue-tickets/**,/api/v1/staff/work-sessions,/api/v1/staff/work-sessions/**,/api/v1/staff/queue-tickets/**,/api/v1/admin/queues/**
+                - Path=/api/v1/admin/audit/queue,/api/v1/user/check-ins,/api/v1/staff/check-ins,/api/v1/user/queue-tickets/**,/api/v1/staff/work-sessions,/api/v1/staff/work-sessions/**,/api/v1/staff/queue-tickets/**,/api/v1/admin/queues/**
 
 server:
   port: ${CIVICFLOW_GATEWAY_PORT:8080}
@@ -41,6 +41,8 @@ civicflow:
     rate-limit:
       login-permits: ${CIVICFLOW_GATEWAY_LOGIN_RATE_PERMITS:10}
       login-window: ${CIVICFLOW_GATEWAY_LOGIN_RATE_WINDOW:PT60S}
+      user-reservation-permits: ${CIVICFLOW_GATEWAY_USER_RESERVATION_PERMITS:5}
+      slot-reservation-permits: ${CIVICFLOW_GATEWAY_SLOT_RESERVATION_PERMITS:500}
       reservation-permits: ${CIVICFLOW_GATEWAY_RESERVATION_RATE_PERMITS:3}
       reservation-window: ${CIVICFLOW_GATEWAY_RESERVATION_RATE_WINDOW:PT1S}
       max-reservation-body-bytes: ${CIVICFLOW_GATEWAY_RESERVATION_BODY_LIMIT:4096}
@@ -49,7 +51,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       show-details: never

@@ -1,0 +1,37 @@
+name: CivicFlow verification
+on:
+  push:
+  pull_request:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: civicflow-web/package-lock.json
+      - name: Backend, migrations and isolated integration tests
+        run: mvn -B verify
+      - name: Frontend
+        working-directory: civicflow-web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run lint
+          npm run typecheck
+          npm run test
+          npm run build
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verification-reports
+          path: |
+            **/target/surefire-reports/
+            civicflow-appointment/target/release-hardening/

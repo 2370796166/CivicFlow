@@ -12,6 +12,7 @@
     <name>CivicFlow Resource</name>
 
     <dependencies>
+        <dependency><groupId>io.micrometer</groupId><artifactId>micrometer-registry-prometheus</artifactId></dependency>
         <dependency>
             <groupId>com.civicflow</groupId>
             <artifactId>civicflow-common</artifactId>

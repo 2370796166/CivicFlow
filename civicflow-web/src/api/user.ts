@@ -5,10 +5,20 @@ import type { Appointment, CheckInToken, Outlet, QueueProgress, QueueTicket, Res
 async function body<T>(request: Promise<{ data: ApiResponse<T> }>): Promise<T> { return (await request).data.data }
 
 export const userApi = {
+  bookingRules() { return body(api.get<ApiResponse<{ advanceDays: number; closedDates: string[]; cancellationNoticeSeconds: number }>>('/user/slots/rules', { suppressErrorToast: true })) },
   outlets(keyword = '', page = 1) { return body(api.get<ApiResponse<Page<Outlet>>>('/user/outlets', { params: { keyword, page } })) },
   outlet(id: string) { return body(api.get<ApiResponse<Outlet>>(`/user/outlets/${id}`)) },
   items(outletId: string, page = 1) { return body(api.get<ApiResponse<Page<ServiceItem>>>(`/user/outlets/${outletId}/items`, { params: { page } })) },
-  slots(outletId: string, itemId: string, serviceDate: string, page = 1) { return body(api.get<ApiResponse<Page<UserSlot>>>('/user/slots', { params: { outletId, itemId, serviceDate, page }, suppressErrorToast: true })) },
+  async slots(outletId: string, itemId: string, serviceDate: string, page = 1): Promise<Page<UserSlot>> {
+    const result = await body(api.get<ApiResponse<Page<UserSlot>>>('/user/slots', { params: { outletId, itemId, serviceDate, page }, suppressErrorToast: true }))
+    // Keep the existing paginated resource contract; inventory is a separately versioned projection.
+    try {
+      const live = await body(api.get<ApiResponse<{ configuration: { slotId: string }; remaining: number | null; availability: string }[]>>('/user/slots/availability', { params: { outletId, itemId, date: serviceDate }, suppressErrorToast: true }))
+      const values = new Map(live.map((slot) => [slot.configuration.slotId, slot]))
+      result.items = result.items.map((slot) => ({ ...slot, remaining: values.get(slot.id)?.remaining ?? null }))
+    } catch { result.items = result.items.map((slot) => ({ ...slot, remaining: null })) }
+    return result
+  },
   async reserve(slotId: string, key: string): Promise<ReservationCreate> {
     try { return await body(api.post<ApiResponse<ReservationCreate>>('/user/appointments/reservations', { slotId }, { headers: { 'Idempotency-Key': key } })) }
     catch (error) {

@@ -30,12 +30,24 @@ public class SentinelGatewayRateLimiter implements GatewayRateLimiter {
         rules.removeIf(
                 rule ->
                         LOGIN_RESOURCE.equals(rule.getResource())
-                                || RESERVATION_RESOURCE.equals(rule.getResource()));
+                                || RESERVATION_RESOURCE.equals(rule.getResource())
+                                || USER_RESOURCE.equals(rule.getResource())
+                                || SLOT_RESOURCE.equals(rule.getResource()));
         rules.add(rule(LOGIN_RESOURCE, limits.getLoginPermits(), limits.getLoginWindow()));
         rules.add(
                 rule(
                         RESERVATION_RESOURCE,
                         limits.getReservationPermits(),
+                        limits.getReservationWindow()));
+        rules.add(
+                rule(
+                        USER_RESOURCE,
+                        limits.getUserReservationPermits(),
+                        limits.getReservationWindow()));
+        rules.add(
+                rule(
+                        SLOT_RESOURCE,
+                        limits.getSlotReservationPermits(),
                         limits.getReservationWindow()));
         ParamFlowRuleManager.loadRules(rules);
     }
@@ -59,7 +71,9 @@ public class SentinelGatewayRateLimiter implements GatewayRateLimiter {
     }
 
     private static void validate(GatewayProperties.RateLimit limits) {
-        if (limits.getLoginPermits() <= 0
+        if (limits.getUserReservationPermits() <= 0
+                || limits.getSlotReservationPermits() <= 0
+                || limits.getLoginPermits() <= 0
                 || limits.getReservationPermits() <= 0
                 || limits.getLoginWindow().isZero()
                 || limits.getLoginWindow().isNegative()

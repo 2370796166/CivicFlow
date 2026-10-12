@@ -3,6 +3,7 @@ export interface ServiceItem { id: string; code: string; name: string; descripti
 export interface UserSlot {
   id: string; outletId: string; itemId: string; serviceDate: string; startTime: string; endTime: string
   totalQuota: number; releaseAt: string; closeAt: string; bookingStatus: 'BOOKABLE' | 'UPCOMING' | 'SUSPENDED' | 'CLOSED'
+  remaining?: number | null
 }
 
 export type AppointmentStatus = 'PENDING_CONFIRM' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED' | 'CHECKED_IN' | 'SERVING' | 'COMPLETED' | 'NO_SHOW'

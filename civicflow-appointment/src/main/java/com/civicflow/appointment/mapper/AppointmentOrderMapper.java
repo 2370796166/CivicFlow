@@ -36,6 +36,8 @@ public interface AppointmentOrderMapper extends BaseMapper<AppointmentOrderEntit
 
     int expire(@Param("id") long id);
 
+    int noShow(@Param("id") long id, @Param("version") int version);
+
     List<Long> selectExpiredIds(@Param("limit") int limit);
 
     int setQr(

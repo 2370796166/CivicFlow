@@ -66,6 +66,8 @@ public class GatewaySecurityConfig {
                                         .permitAll()
                                         .pathMatchers("/internal/**")
                                         .denyAll()
+                                        .pathMatchers("/actuator/prometheus")
+                                        .hasRole("ADMIN")
                                         .pathMatchers("/api/v1/admin/**")
                                         .hasRole("ADMIN")
                                         .pathMatchers("/api/v1/staff/**")

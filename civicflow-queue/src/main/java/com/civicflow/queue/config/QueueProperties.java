@@ -13,6 +13,7 @@ public class QueueProperties {
     private String appointmentServiceToken;
     private String resourceServiceToken;
     private boolean recoveryEnabled = true;
+    private int syncMaxAttempts = 20;
 
     @Getter
     @Setter

@@ -11,6 +11,11 @@ import java.util.List;
 import org.apache.ibatis.annotations.Param;
 
 public interface ResourceSlotMapper extends BaseMapper<ResourceSlotEntity> {
+    List<SlotSnapshotRow> selectUserCandidates(
+            @Param("outletId") long outletId,
+            @Param("itemId") long itemId,
+            @Param("date") LocalDate date);
+
     List<ResourceSlotEntity> selectUserPage(
             @Param("outletId") long outletId,
             @Param("itemId") long itemId,

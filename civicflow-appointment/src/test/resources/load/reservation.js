@@ -2,6 +2,7 @@ import http from 'k6/http';
 import exec from 'k6/execution';
 import { check } from 'k6';
 import { Counter } from 'k6/metrics';
+import { sleep, fail } from 'k6';
 
 // Synthetic credentials are generated in the isolated JUnit fixture, never committed.
 const fixture = JSON.parse(open('/tmp/fixture.json'));
@@ -15,6 +16,16 @@ export const options = {
   thresholds: { checks: ['rate==1'], accepted: [`count==${fixture.expectedAccepted}`], unexpected: ['count==0'] },
   summaryTrendStats: ['min', 'med', 'p(95)', 'p(99)', 'max'],
 };
+// Docker Desktop may expose the host port before its forwarding path is ready.
+// Fail before measuring the burst if the application cannot be reached.
+export function setup() {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const response = http.get(fixture.base + '/actuator/health', { timeout: '2s', tags: { phase: 'warmup' } });
+    if (response.status === 200) return;
+    sleep(0.5);
+  }
+  fail('Application health endpoint is unreachable from the load container');
+}
 export default function () {
   const user = fixture.users[exec.vu.idInTest - 1];
   const response = http.post(`${fixture.base}/api/v1/user/appointments/reservations`,

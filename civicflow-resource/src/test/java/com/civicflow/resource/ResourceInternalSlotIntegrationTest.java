@@ -182,4 +182,43 @@ class ResourceInternalSlotIntegrationTest {
         return jwt().jwt(jwt -> jwt.claim("serviceName", "civicflow-appointment"))
                 .authorities(new SimpleGrantedAuthority("SCOPE_resource.slots.read"));
     }
+
+    @Test
+    void userCandidateProjectionRequiresEnabledOfferingAndBindingReadReturnsExistingSelection()
+            throws Exception {
+        jdbcTemplate.update(
+                "INSERT INTO service_window(id,outlet_id,code,name,status,version,deleted) VALUES(301,101,'W301','一号窗口','ENABLED',2,0)");
+        jdbcTemplate.update(
+                "INSERT INTO window_item_rel(id,window_id,item_id,deleted) VALUES(401,301,201,0)");
+        String day =
+                jdbcTemplate
+                        .queryForObject(
+                                "SELECT service_date FROM resource_slot WHERE id=?",
+                                java.sql.Date.class,
+                                SLOT_ID)
+                        .toString();
+        mockMvc.perform(
+                        get("/internal/v1/resource/slots/user-candidates")
+                                .param("outletId", "101")
+                                .param("itemId", "201")
+                                .param("date", day)
+                                .with(appointmentService()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].slotId").value(Long.toString(SLOT_ID)));
+        mockMvc.perform(
+                        get("/api/v1/admin/windows/301/items")
+                                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value(2))
+                .andExpect(jsonPath("$.data.itemIds[0]").value("201"));
+        jdbcTemplate.update("UPDATE service_window SET status='DISABLED' WHERE id=301");
+        mockMvc.perform(
+                        get("/internal/v1/resource/slots/user-candidates")
+                                .param("outletId", "101")
+                                .param("itemId", "201")
+                                .param("date", day)
+                                .with(appointmentService()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
+    }
 }

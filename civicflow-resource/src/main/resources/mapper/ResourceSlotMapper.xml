@@ -50,6 +50,17 @@
         JOIN service_item i ON i.id = s.item_id AND i.deleted = 0
         WHERE s.id = #{id} AND s.deleted = 0
     </select>
+    <select id="selectUserCandidates" resultType="com.civicflow.resource.dto.response.SlotSnapshotRow">
+        SELECT <include refid="snapshotColumns"/> FROM resource_slot s
+        JOIN service_outlet o ON o.id=s.outlet_id AND o.deleted=0 AND o.status='ENABLED'
+        JOIN service_item i ON i.id=s.item_id AND i.deleted=0 AND i.status='ENABLED'
+        WHERE s.deleted=0 AND s.outlet_id=#{outletId} AND s.item_id=#{itemId}
+          AND s.service_date=#{date} AND s.status IN ('SCHEDULED','OPEN','SUSPENDED','CLOSED')
+          AND EXISTS (SELECT 1 FROM service_window w JOIN window_item_rel r
+            ON r.window_id=w.id AND r.item_id=s.item_id AND r.deleted=0
+            WHERE w.outlet_id=s.outlet_id AND w.deleted=0 AND w.status='ENABLED')
+        ORDER BY s.start_time,s.id LIMIT 100
+    </select>
     <select id="selectByIdForUpdate" resultType="com.civicflow.resource.entity.ResourceSlotEntity">
         SELECT <include refid="columns"/> FROM resource_slot WHERE id = #{id} AND deleted = 0 FOR UPDATE
     </select>

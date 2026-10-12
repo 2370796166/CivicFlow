@@ -28,7 +28,7 @@ import reactor.core.publisher.Mono;
 @Component
 public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
     private static final String LOGIN_PATH = "/api/v1/auth/login";
-    private static final String RESERVATION_PATH = "/api/v1/user/reservations";
+    private static final String RESERVATION_PATH = "/api/v1/user/appointments/reservations";
 
     private final GatewayRateLimiter rateLimiter;
     private final GatewayResponseWriter responseWriter;
@@ -86,6 +86,21 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
                                             authentication -> {
                                                 if (authentication.isEmpty()) {
                                                     return chain.filter(replayable);
+                                                }
+                                                if (!rateLimiter.tryAcquire(
+                                                                GatewayRateLimiter.USER_RESOURCE,
+                                                                authentication.get().getName())
+                                                        || !rateLimiter.tryAcquire(
+                                                                GatewayRateLimiter.SLOT_RESOURCE,
+                                                                slotId)) {
+                                                    replayable
+                                                            .getResponse()
+                                                            .getHeaders()
+                                                            .set("Retry-After", "1");
+                                                    return responseWriter.write(
+                                                            replayable,
+                                                            HttpStatus.TOO_MANY_REQUESTS,
+                                                            GatewayErrorCode.RATE_LIMITED);
                                                 }
                                                 return acquireOrReject(
                                                         replayable,

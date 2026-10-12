@@ -43,6 +43,7 @@ public class ReservationWorkflowServiceImpl implements ReservationWorkflowServic
     private final AppointmentProperties properties;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final io.micrometer.core.instrument.MeterRegistry metrics;
 
     public ReservationWorkflowServiceImpl(
             AppointmentReservationRequestMapper requestMapper,
@@ -53,7 +54,8 @@ public class ReservationWorkflowServiceImpl implements ReservationWorkflowServic
             StockReleaseService stockReleaseService,
             AppointmentProperties properties,
             ObjectMapper objectMapper,
-            Clock clock) {
+            Clock clock,
+            io.micrometer.core.instrument.MeterRegistry metrics) {
         this.requestMapper = requestMapper;
         this.resourceClient = resourceClient;
         this.stockService = stockService;
@@ -63,10 +65,31 @@ public class ReservationWorkflowServiceImpl implements ReservationWorkflowServic
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.clock = clock;
+        this.metrics = metrics;
     }
 
     @Override
     public CreateOutcome create(long userId, long slotId, String idempotencyKey, String traceId) {
+        var sample = io.micrometer.core.instrument.Timer.start(metrics);
+        String outcome = "error";
+        try {
+            var result = createInternal(userId, slotId, idempotencyKey, traceId);
+            outcome =
+                    result.dependencyUnavailable()
+                            ? "dependency_unavailable"
+                            : result.response().status().equals("FAILED") ? "rejected" : "accepted";
+            return result;
+        } catch (BusinessException ex) {
+            outcome = "business_rejection";
+            throw ex;
+        } finally {
+            metrics.counter("civicflow.reservation.requests", "outcome", outcome).increment();
+            sample.stop(metrics.timer("civicflow.reservation.request", "outcome", outcome));
+        }
+    }
+
+    private CreateOutcome createInternal(
+            long userId, long slotId, String idempotencyKey, String traceId) {
         validate(userId, slotId, idempotencyKey, traceId);
         byte[] keyHash = Digests.sha256(idempotencyKey);
         byte[] payloadHash = Digests.sha256("slotId=" + slotId);
@@ -76,7 +99,7 @@ public class ReservationWorkflowServiceImpl implements ReservationWorkflowServic
         } else if (!Digests.equal(request.getPayloadHash(), payloadHash)) {
             throw new BusinessException(CommonErrorCode.IDEMPOTENCY_CONFLICT);
         }
-        return progress(request);
+        return progress(request, false);
     }
 
     @Override
@@ -88,10 +111,11 @@ public class ReservationWorkflowServiceImpl implements ReservationWorkflowServic
                 || request.getStatus() == ReservationRequestStatus.FAILED) {
             return;
         }
-        progress(request);
+        progress(request, true);
     }
 
-    private CreateOutcome progress(AppointmentReservationRequestEntity request) {
+    private CreateOutcome progress(
+            AppointmentReservationRequestEntity request, boolean background) {
         boolean previouslyUnknown = request.getStatus() == ReservationRequestStatus.PUBLISH_UNKNOWN;
         if (request.getStatus() == ReservationRequestStatus.PERSISTED
                 || request.getStatus() == ReservationRequestStatus.PUBLISHED) {
@@ -115,7 +139,13 @@ public class ReservationWorkflowServiceImpl implements ReservationWorkflowServic
         } else {
             event = readEvent(request);
         }
-        ReservationEventPublisher.PublishResult publishResult = publisher.publish(event);
+        // Recovery publishes the already-durable canonical event without occupying an HTTP worker.
+        if (!background && properties.getReservation().isAsyncPublish()) {
+            return creating(request, false);
+        }
+        ReservationEventPublisher.PublishResult publishResult =
+                metrics.timer("civicflow.reservation.stage", "stage", "publish")
+                        .record(() -> publisher.publish(event));
         request.setPublishAttempts(request.getPublishAttempts() + publishResult.attempts());
         request.setLastErrorCode(publishResult.errorCode());
         if (publishResult.outcome() == ReservationEventPublisher.Outcome.ACKNOWLEDGED) {
@@ -217,7 +247,9 @@ public class ReservationWorkflowServiceImpl implements ReservationWorkflowServic
             long userId, long slotId, byte[] keyHash, byte[] payloadHash, String traceId) {
         ApiResponse<ResourceSlotSnapshot> response;
         try {
-            response = resourceClient.getSnapshot(slotId);
+            response =
+                    metrics.timer("civicflow.reservation.stage", "stage", "resource")
+                            .record(() -> resourceClient.getSnapshot(slotId));
         } catch (RuntimeException exception) {
             throw new BusinessException(CommonErrorCode.DEPENDENCY_UNAVAILABLE, exception);
         }
@@ -228,6 +260,14 @@ public class ReservationWorkflowServiceImpl implements ReservationWorkflowServic
                 || snapshot.itemName() == null
                 || snapshot.itemName().isBlank()) {
             throw new BusinessException(CommonErrorCode.DEPENDENCY_UNAVAILABLE);
+        }
+        var today = clock.instant().atZone(java.time.ZoneId.of("Asia/Shanghai")).toLocalDate();
+        if (snapshot.serviceDate() == null
+                || properties.getRules().getClosedDates().contains(snapshot.serviceDate())
+                || snapshot.serviceDate().isBefore(today)
+                || snapshot.serviceDate()
+                        .isAfter(today.plusDays(properties.getRules().getAdvanceDays()))) {
+            throw new BusinessException(AppointmentErrorCode.SLOT_NOT_OPEN);
         }
         AppointmentReservationRequestEntity request = new AppointmentReservationRequestEntity();
         request.setReservationId(UUID.randomUUID().toString());

@@ -202,6 +202,43 @@ class ReleaseHardeningIntegrationTest {
         load(41003, 1, 100, true);
     }
 
+    @Test
+    void asynchronousAdmissionRecoversWithRealBrokerAndPreservesOneOrder() throws Exception {
+        var snapshot = slot(41004, 1);
+        configuration.getReservation().setAsyncPublish(true);
+        try {
+            var admitted =
+                    workflow.create(
+                            41004,
+                            Long.parseLong(snapshot.slotId()),
+                            "async-real",
+                            "async-real-trace");
+            assertEquals("CREATING", admitted.response().status());
+            String reservation = admitted.response().reservationId();
+            long requestId =
+                    db.queryForObject(
+                            "SELECT id FROM appointment_reservation_request WHERE reservation_id=?",
+                            Long.class,
+                            reservation);
+            assertEquals(
+                    "RESERVED",
+                    text(
+                            "SELECT status FROM appointment_reservation_request WHERE id=?",
+                            requestId));
+            workflow.recover(requestId);
+            settled(41004, 1);
+            workflow.recover(requestId);
+            assertEquals(
+                    1,
+                    count(
+                            "SELECT COUNT(*) FROM appointment_order WHERE reservation_id=?",
+                            reservation));
+            assertEquals(0, stock.reconciliationSnapshot(snapshot.toStockSnapshot()).remaining());
+        } finally {
+            configuration.getReservation().setAsyncPublish(false);
+        }
+    }
+
     void load(long id, int quota, int users, boolean sameUser) throws Exception {
         var snapshot = slot(id, quota);
         List<Map<String, String>> credentials = new ArrayList<>();
@@ -242,12 +279,22 @@ class ReleaseHardeningIntegrationTest {
                 TimeUnit.MILLISECONDS);
         try (var k6 =
                 new GenericContainer<>("grafana/k6:0.52.0")
-                        .withCreateContainerCmdModifier(c -> c.withEntrypoint("/bin/sh"))
+                        .withCreateContainerCmdModifier(
+                                c -> {
+                                    c.withEntrypoint("/bin/sh");
+                                    if (System.getProperty("os.name")
+                                            .toLowerCase(Locale.ROOT)
+                                            .contains("linux")) {
+                                        c.getHostConfig()
+                                                .withExtraHosts(
+                                                        "host.docker.internal:host-gateway");
+                                    }
+                                })
                         .withCommand("-c", "sleep 300")
                         .withCopyFileToContainer(
-                                MountableFile.forHostPath(fixture), "/tmp/fixture.json")
+                                MountableFile.forHostPath(fixture, 0644), "/tmp/fixture.json")
                         .withCopyFileToContainer(
-                                MountableFile.forClasspathResource("load/reservation.js"),
+                                MountableFile.forClasspathResource("load/reservation.js", 0644),
                                 "/tmp/load.js")) {
             k6.start();
             var result =
