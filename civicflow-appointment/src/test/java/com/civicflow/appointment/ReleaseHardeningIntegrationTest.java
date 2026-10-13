@@ -80,7 +80,9 @@ class ReleaseHardeningIntegrationTest {
         p.add("spring.sql.init.mode", () -> "never");
         p.add("spring.data.redis.host", REDIS::getHost);
         p.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
-        p.add("spring.data.redis.timeout", () -> "500ms");
+        // This shared CI runner also hosts k6 and all three dependencies during the 1000-user
+        // burst. Allow scheduling headroom; the paused-Redis test still exercises a finite timeout.
+        p.add("spring.data.redis.timeout", () -> "5s");
         p.add("spring.rabbitmq.host", RABBIT::getHost);
         p.add("spring.rabbitmq.port", () -> RABBIT.getMappedPort(5672));
         p.add("spring.rabbitmq.username", () -> "release");
