@@ -1,0 +1,13 @@
+{
+  "name": "智序",
+  "appid": "",
+  "description": "公共服务预约与排队",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "vueVersion": "3",
+  "mp-weixin": {
+    "appid": "touristappid",
+    "setting": { "urlCheck": true },
+    "usingComponents": true
+  }
+}

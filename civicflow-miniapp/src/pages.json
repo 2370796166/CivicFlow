@@ -1,0 +1,82 @@
+{
+  "pages": [
+    {
+      "path": "pages/home/index",
+      "style": {
+        "navigationBarTitleText": "智序 · 公共服务预约",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/appointments/index",
+      "style": {
+        "navigationBarTitleText": "我的预约",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/profile/index",
+      "style": { "navigationBarTitleText": "我的" }
+    },
+    {
+      "path": "pages/login/index",
+      "style": { "navigationBarTitleText": "登录智序" }
+    },
+    {
+      "path": "pages/outlet/index",
+      "style": { "navigationBarTitleText": "选择办理事项" }
+    },
+    {
+      "path": "pages/booking/index",
+      "style": { "navigationBarTitleText": "选择预约时段" }
+    },
+    {
+      "path": "pages/reservation/index",
+      "style": { "navigationBarTitleText": "预约进度" }
+    },
+    {
+      "path": "pages/detail/index",
+      "style": { "navigationBarTitleText": "预约详情" }
+    },
+    {
+      "path": "pages/checkin/index",
+      "style": { "navigationBarTitleText": "签到" }
+    },
+    {
+      "path": "pages/queue/index",
+      "style": { "navigationBarTitleText": "排队进度" }
+    },
+    {
+      "path": "pages/notifications/index",
+      "style": {
+        "navigationBarTitleText": "通知中心",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/preferences/index",
+      "style": { "navigationBarTitleText": "通知偏好" }
+    },
+    {
+      "path": "pages/help/index",
+      "style": { "navigationBarTitleText": "使用说明" }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarBackgroundColor": "#f4f7fb",
+    "backgroundColor": "#f4f7fb",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#69788b",
+    "selectedColor": "#1764c0",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      { "pagePath": "pages/home/index", "text": "首页" },
+      { "pagePath": "pages/appointments/index", "text": "我的预约" },
+      { "pagePath": "pages/profile/index", "text": "我的" }
+    ]
+  }
+}

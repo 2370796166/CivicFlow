@@ -1,0 +1,41 @@
+{
+  "name": "civicflow-miniapp",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:mp-weixin": "uni -p mp-weixin",
+    "build:mp-weixin": "uni build -p mp-weixin",
+    "typecheck": "vue-tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build:mp-weixin",
+    "wechat:smoke": "node tools/wechat-smoke.mjs"
+  },
+  "dependencies": {
+    "@dcloudio/uni-app": "3.0.0-5020420260813003",
+    "@dcloudio/uni-components": "3.0.0-5020420260813003",
+    "@dcloudio/uni-mp-weixin": "3.0.0-5020420260813003",
+    "pinia": "2.1.7",
+    "qrcode-generator": "2.0.4",
+    "vue": "3.4.21",
+    "vue-i18n": "9.14.5"
+  },
+  "devDependencies": {
+    "@dcloudio/types": "3.4.31",
+    "@dcloudio/uni-cli-shared": "3.0.0-5020420260813003",
+    "@dcloudio/vite-plugin-uni": "3.0.0-5020420260813003",
+    "@eslint/js": "9.36.0",
+    "@types/node": "22.18.6",
+    "@vue/tsconfig": "0.5.1",
+    "eslint": "9.36.0",
+    "eslint-plugin-vue": "10.5.1",
+    "miniprogram-automator": "0.12.1",
+    "prettier": "3.6.2",
+    "terser": "5.44.0",
+    "typescript": "5.9.2",
+    "typescript-eslint": "8.46.0",
+    "vite": "5.2.8",
+    "vitest": "2.1.9",
+    "vue-tsc": "2.2.12"
+  }
+}
