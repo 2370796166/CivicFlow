@@ -30,10 +30,12 @@ spring:
               predicates:
                 - Path=/api/v1/user/notifications,/api/v1/user/notifications/**,/api/v1/user/notification-preferences,/api/v1/admin/notifications/**
 server:
+  forward-headers-strategy: none
   port: ${CIVICFLOW_GATEWAY_PORT:8080}
 
 civicflow:
   gateway:
+    trusted-proxies: ${CIVICFLOW_GATEWAY_TRUSTED_PROXIES:}
     jwt:
       issuer: ${CIVICFLOW_AUTH_JWT_ISSUER:https://auth.civicflow.local}
       audience: ${CIVICFLOW_AUTH_JWT_AUDIENCE:civicflow-api}

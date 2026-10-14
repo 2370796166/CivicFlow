@@ -25,6 +25,44 @@ import reactor.core.publisher.Mono;
 
 class GatewayRateLimitFilterTest {
     @Test
+    void proxyClientsHaveSeparateBucketsAndUntrustedHeadersCannotSpoofIp() {
+        var limiter = new RecordingRateLimiter(true);
+        var properties = new GatewayProperties();
+        properties.setTrustedProxies(List.of("172.30.250.2/32"));
+        var filter =
+                new GatewayRateLimitFilter(
+                        limiter,
+                        new GatewayResponseWriter(new ObjectMapper()),
+                        properties,
+                        new ObjectMapper());
+        for (String ip : List.of("198.51.100.1", "198.51.100.2")) {
+            filter.filter(loginFrom("172.30.250.2", ip), ignored -> Mono.empty()).block();
+            assertThat(limiter.key).isEqualTo(ip);
+        }
+        for (String invalid :
+                List.of(
+                        "198.51.100.1, 198.51.100.2",
+                        "attacker.example",
+                        "127.0.0.1:80",
+                        "::1%lo")) {
+            filter.filter(loginFrom("172.30.250.2", invalid), ignored -> Mono.empty()).block();
+            assertThat(limiter.key).isEqualTo("172.30.250.2");
+        }
+        filter.filter(loginFrom("198.51.100.9", "198.51.100.1"), ignored -> Mono.empty()).block();
+        assertThat(limiter.key).isEqualTo("198.51.100.9");
+        filter.filter(loginFrom("172.30.250.2", "2001:db8::1"), ignored -> Mono.empty()).block();
+        assertThat(limiter.key).isEqualTo("2001:db8::1");
+    }
+
+    private static MockServerWebExchange loginFrom(String peer, String forwarded) {
+        return MockServerWebExchange.from(
+                MockServerHttpRequest.post("/api/v1/auth/login")
+                        .remoteAddress(new java.net.InetSocketAddress(peer, 12345))
+                        .header("X-Forwarded-For", forwarded)
+                        .build());
+    }
+
+    @Test
     void writesUnified429WithRetryAfter() {
         RecordingRateLimiter limiter = new RecordingRateLimiter(false);
         GatewayRateLimitFilter filter = filter(limiter);

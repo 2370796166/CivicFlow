@@ -1,5 +1,6 @@
 package com.civicflow.resource.config;
 
+import com.civicflow.resource.service.AdminAuthorizationService;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -24,6 +25,7 @@ import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -34,9 +36,13 @@ public class ResourceSecurityConfig {
             HttpSecurity http,
             JwtDecoder jwtDecoder,
             JwtAuthenticationConverter jwtAuthenticationConverter,
-            SecurityResponseWriter responseWriter)
+            SecurityResponseWriter responseWriter,
+            AdminAuthorizationService adminAuthorization)
             throws Exception {
-        http.csrf(csrf -> csrf.disable())
+        http.addFilterAfter(
+                        new AdminAuthorizationFilter(adminAuthorization, responseWriter),
+                        BearerTokenAuthenticationFilter.class)
+                .csrf(csrf -> csrf.disable())
                 .cors(Customizer.withDefaults())
                 .sessionManagement(
                         sessions -> sessions.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -48,6 +54,8 @@ public class ResourceSecurityConfig {
                                                 "/actuator/info")
                                         .permitAll()
                                         .requestMatchers("/actuator/prometheus")
+                                        .hasRole("ADMIN")
+                                        .requestMatchers("/api/v1/admin/**")
                                         .hasRole("ADMIN")
                                         .anyRequest()
                                         .authenticated())

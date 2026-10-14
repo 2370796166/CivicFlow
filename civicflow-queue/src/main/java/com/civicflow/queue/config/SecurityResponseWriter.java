@@ -47,7 +47,7 @@ public class SecurityResponseWriter implements AuthenticationEntryPoint, AccessD
                 QueueSecurityErrorCode.FORBIDDEN);
     }
 
-    private void write(
+    public void write(
             HttpServletRequest request,
             HttpServletResponse response,
             int status,

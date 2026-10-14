@@ -9,7 +9,8 @@ const checkInToken = vi.fn(), checkIn = vi.fn()
 vi.mock('qrcode', () => ({ default: { toDataURL: vi.fn(async () => 'data:image/png;base64,dGVzdA==') } }))
 vi.mock('@/api/user', () => ({ userApi: { appointment: (...args: unknown[]) => appointment(...args), confirm: (...args: unknown[]) => confirm(...args), queue: (...args: unknown[]) => queue(...args), checkInToken: (...args: unknown[]) => checkInToken(...args), checkIn: (...args: unknown[]) => checkIn(...args) } }))
 vi.mock('vue-router', () => ({ useRoute: () => ({ params: { appointmentId: '42' } }), RouterLink: { template: '<a><slot /></a>' } }))
-vi.mock('element-plus', () => ({ ElMessage: { success: vi.fn() } }))
+vi.mock('element-plus/es/components/message/index', () => ({ ElMessage: { success: vi.fn() } }))
+vi.mock('element-plus/es/components/message-box/index', () => ({ ElMessage: { success: vi.fn() } }))
 
 const pending = {
   appointmentId: '42', reservationId: 'res-1', slotId: '9', outletId: '3', itemId: '2', outletName: '东城中心', itemName: '户籍办理',

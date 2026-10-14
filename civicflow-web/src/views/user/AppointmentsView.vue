@@ -1,4 +1,13 @@
 <script setup lang="ts">
+import { ElButton } from 'element-plus/es/components/button/index'
+import 'element-plus/es/components/button/style/css.mjs'
+import { ElOption } from 'element-plus/es/components/select/index'
+import 'element-plus/es/components/select/style/css.mjs'
+import { ElPagination } from 'element-plus/es/components/pagination/index'
+import 'element-plus/es/components/pagination/style/css.mjs'
+import { ElSelect } from 'element-plus/es/components/select/index'
+import { ElTag } from 'element-plus/es/components/tag/index'
+import 'element-plus/es/components/tag/style/css.mjs'
 import { onMounted, ref } from 'vue'
 import StatePanel from '@/components/StatePanel.vue'
 import { userApi } from '@/api/user'

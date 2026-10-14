@@ -2,7 +2,7 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { pinia } from '@/stores/pinia'
 import { useAuthStore } from '@/stores/auth'
 import type { Role } from '@/types/api'
-import AppLayout from '@/components/AppLayout.vue'
+const AppLayout = () => import('@/components/AppLayout.vue')
 const LoginView = () => import('@/views/LoginView.vue')
 const ForbiddenView = () => import('@/views/ForbiddenView.vue')
 const NotFoundView = () => import('@/views/NotFoundView.vue')

@@ -10,7 +10,8 @@ const confirm = vi.fn()
 const warning = vi.fn()
 const checkIn = vi.fn()
 vi.mock('@/api/staff', () => ({ staffApi: { scopes: (...args: unknown[]) => scopes(...args), current: (...args: unknown[]) => current(...args), callNext: (...args: unknown[]) => callNext(...args), change: (...args: unknown[]) => change(...args), checkIn: (...args: unknown[]) => checkIn(...args) } }))
-vi.mock('element-plus', () => ({ ElMessageBox: { confirm: (...args: unknown[]) => confirm(...args) }, ElMessage: { warning: (...args: unknown[]) => warning(...args) } }))
+vi.mock('element-plus/es/components/message/index', () => ({ ElMessageBox: { confirm: (...args: unknown[]) => confirm(...args) }, ElMessage: { warning: (...args: unknown[]) => warning(...args) } }))
+vi.mock('element-plus/es/components/message-box/index', () => ({ ElMessageBox: { confirm: (...args: unknown[]) => confirm(...args) }, ElMessage: { warning: (...args: unknown[]) => warning(...args) } }))
 
 const scope = { outletId: 'o1', outletCode: 'EAST', outletName: '东城中心', windowId: 'w1', windowCode: '01', windowName: '一号窗口', items: [{ id: 'i1', code: 'H', name: '户籍' }] }
 const session = { id: 's1', outletId: 'o1', windowId: 'w1', status: 'ACTIVE', version: 0, startedAt: '', endedAt: null }

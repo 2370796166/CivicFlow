@@ -7,7 +7,8 @@ import type { TokenPair } from '@/types/api'
 
 const authApi = vi.hoisted(() => ({ login: vi.fn(), refresh: vi.fn(), logout: vi.fn() }))
 vi.mock('@/api/auth', () => ({ authApi }))
-vi.mock('element-plus', () => ({ ElMessage: { error: vi.fn() } }))
+vi.mock('element-plus/es/components/message/index', () => ({ ElMessage: { error: vi.fn() } }))
+vi.mock('element-plus/es/components/message-box/index', () => ({ ElMessage: { error: vi.fn() } }))
 const pair = (id: string) => ({ accessToken: `access-${id}`, refreshToken: `refresh-${id}`, expiresIn: 900, user: { id, displayName: id, roles: ['USER'] } }) as TokenPair
 
 describe('requests from previous sessions', () => {

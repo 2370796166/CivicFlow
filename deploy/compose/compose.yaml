@@ -294,7 +294,13 @@ services:
     build:
       context: ../..
       dockerfile: deploy/docker/gateway.Dockerfile
-    environment: {HEALTH_PORT: "8080"}
+    environment:
+      HEALTH_PORT: "8080"
+      CIVICFLOW_GATEWAY_TRUSTED_PROXIES: ${CIVICFLOW_INGRESS_WEB_IP:-172.30.250.2}/32
+    networks:
+      civicflow-local: {}
+      civicflow-ingress:
+        ipv4_address: ${CIVICFLOW_INGRESS_GATEWAY_IP:-172.30.250.3}
     volumes: ["gateway-config:/config:ro"]
     ports: ["127.0.0.1:${GATEWAY_PORT:-8080}:8080"]
     depends_on:
@@ -316,9 +322,16 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
-    networks: [civicflow-local]
+    networks:
+      civicflow-ingress:
+        ipv4_address: ${CIVICFLOW_INGRESS_WEB_IP:-172.30.250.2}
 
 networks:
+  civicflow-ingress:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${CIVICFLOW_INGRESS_SUBNET:-172.30.250.0/29}
   civicflow-local:
     name: civicflow-local
     driver: bridge

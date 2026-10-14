@@ -28,6 +28,9 @@ import org.springframework.test.context.jdbc.Sql;
 @ActiveProfiles("test")
 @Sql("/workbench-h2.sql")
 class QueueWorkbenchIntegrationTest {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.civicflow.queue.service.AdminAuthorizationService adminAuthorization;
+
     @Autowired QueueWorkbenchService workbench;
     @Autowired JdbcTemplate jdbc;
     @Autowired QueueStateSyncMapper stateSync;

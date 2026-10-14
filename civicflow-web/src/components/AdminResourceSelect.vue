@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import { ElButton } from 'element-plus/es/components/button/index'
+import 'element-plus/es/components/button/style/css.mjs'
+import { ElOption } from 'element-plus/es/components/select/index'
+import 'element-plus/es/components/select/style/css.mjs'
+import { ElSelect } from 'element-plus/es/components/select/index'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { adminApi } from '@/api/admin'
 import type { AdminResource } from '@/types/admin'

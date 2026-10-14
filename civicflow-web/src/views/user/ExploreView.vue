@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { ElButton } from 'element-plus/es/components/button/index'
+import 'element-plus/es/components/button/style/css.mjs'
+import { ElInput } from 'element-plus/es/components/input/index'
+import 'element-plus/es/components/input/style/css.mjs'
+import { ElPagination } from 'element-plus/es/components/pagination/index'
+import 'element-plus/es/components/pagination/style/css.mjs'
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import StatePanel from '@/components/StatePanel.vue'

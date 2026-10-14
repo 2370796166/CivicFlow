@@ -4,7 +4,8 @@ import UsersView from './UsersView.vue'
 
 const users = vi.fn(), createUser = vi.fn(), confirm = vi.fn()
 vi.mock('@/api/admin', () => ({ adminApi: { users: (...args: unknown[]) => users(...args), createUser: (...args: unknown[]) => createUser(...args) } }))
-vi.mock('element-plus', () => ({ ElMessage: { error: vi.fn() }, ElMessageBox: { confirm: (...args: unknown[]) => confirm(...args) } }))
+vi.mock('element-plus/es/components/message/index', () => ({ ElMessage: { error: vi.fn() }, ElMessageBox: { confirm: (...args: unknown[]) => confirm(...args) } }))
+vi.mock('element-plus/es/components/message-box/index', () => ({ ElMessage: { error: vi.fn() }, ElMessageBox: { confirm: (...args: unknown[]) => confirm(...args) } }))
 const stubs = {
   StatePanel: true, ElInput: true, ElSelect: true, ElOption: true, ElTable: true, ElTableColumn: true, ElPagination: true,
   ElCheckboxGroup: true, ElCheckbox: true,

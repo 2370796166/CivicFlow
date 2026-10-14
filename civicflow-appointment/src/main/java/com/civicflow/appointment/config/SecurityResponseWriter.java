@@ -47,7 +47,7 @@ public class SecurityResponseWriter implements AuthenticationEntryPoint, AccessD
                 AppointmentSecurityErrorCode.FORBIDDEN);
     }
 
-    private void write(
+    public void write(
             HttpServletRequest request,
             HttpServletResponse response,
             int status,

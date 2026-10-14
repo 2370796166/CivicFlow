@@ -42,6 +42,9 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 @AutoConfigureMockMvc
 @SpringBootTest
 class ResourceFlowIntegrationTest {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.civicflow.resource.service.AdminAuthorizationService adminAuthorization;
+
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private JdbcTemplate jdbcTemplate;

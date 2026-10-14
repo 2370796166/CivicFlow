@@ -45,6 +45,9 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 @SpringBootTest
 class ResourceSlotIntegrationTest {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.civicflow.resource.service.AdminAuthorizationService adminAuthorization;
+
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
     private static final long OUTLET_ID = 101;
     private static final long ITEM_ID = 201;

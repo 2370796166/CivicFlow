@@ -6,6 +6,7 @@ import com.civicflow.gateway.ratelimit.GatewayRateLimiter;
 import com.civicflow.gateway.support.GatewayResponseWriter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.netty.util.NetUtil;
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.Optional;
@@ -44,13 +45,16 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
         this.responseWriter = responseWriter;
         this.properties = properties;
         this.objectMapper = objectMapper;
+        properties.getTrustedProxies().stream()
+                .filter(value -> !value.isBlank())
+                .forEach(value -> matchesCidr(value, "127.0.0.1"));
     }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
         if (HttpMethod.POST.equals(exchange.getRequest().getMethod()) && LOGIN_PATH.equals(path)) {
-            String clientIp = clientIp(exchange.getRequest().getRemoteAddress());
+            String clientIp = clientIp(exchange);
             return acquireOrReject(
                     exchange,
                     chain,
@@ -180,11 +184,42 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
         return exchange.mutate().request(request).build();
     }
 
-    private static String clientIp(InetSocketAddress remoteAddress) {
+    private static boolean matchesCidr(String cidr, String ip) {
+        String[] parts = cidr.split("/", -1);
+        byte[] network = NetUtil.createByteArrayFromIpAddressString(parts[0]);
+        if (network == null || parts.length > 2)
+            throw new IllegalArgumentException("Trusted proxy must be a numeric IP or CIDR");
+        int bits = parts.length == 2 ? Integer.parseInt(parts[1]) : network.length * 8;
+        if (bits < 0 || bits > network.length * 8)
+            throw new IllegalArgumentException("Invalid trusted proxy prefix");
+        byte[] address = NetUtil.createByteArrayFromIpAddressString(ip);
+        if (address == null || address.length != network.length) return false;
+        for (int bit = 0; bit < bits; bit++) {
+            int mask = 1 << (7 - bit % 8);
+            if ((network[bit / 8] & mask) != (address[bit / 8] & mask)) return false;
+        }
+        return true;
+    }
+
+    private String clientIp(ServerWebExchange exchange) {
+        InetSocketAddress remoteAddress = exchange.getRequest().getRemoteAddress();
         if (remoteAddress == null || remoteAddress.getAddress() == null) {
             return "unknown";
         }
-        return remoteAddress.getAddress().getHostAddress();
+        String peer = remoteAddress.getAddress().getHostAddress();
+        boolean trusted =
+                properties.getTrustedProxies().stream()
+                        .filter(value -> !value.isBlank())
+                        .anyMatch(value -> matchesCidr(value, peer));
+        var forwarded = exchange.getRequest().getHeaders().get("X-Forwarded-For");
+        if (trusted && forwarded != null && forwarded.size() == 1) {
+            String ip = forwarded.get(0).trim();
+            if (ip.matches("[0-9a-fA-F:.]+")
+                    && (NetUtil.isValidIpV4Address(ip) || NetUtil.isValidIpV6Address(ip))) {
+                return NetUtil.bytesToIpAddress(NetUtil.createByteArrayFromIpAddressString(ip));
+            }
+        }
+        return peer;
     }
 
     @Override

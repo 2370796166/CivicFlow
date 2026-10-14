@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { ElButton } from 'element-plus/es/components/button/index'
+import 'element-plus/es/components/button/style/css.mjs'
+import { ElSkeleton } from 'element-plus/es/components/skeleton/index'
+import 'element-plus/es/components/skeleton/style/css.mjs'
 withDefaults(defineProps<{ state: 'loading' | 'empty' | 'error'; title?: string; description?: string }>(), { title: '', description: '' })
 defineEmits<{ retry: [] }>()
 </script>

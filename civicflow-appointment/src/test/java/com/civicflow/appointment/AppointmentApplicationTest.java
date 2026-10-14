@@ -21,6 +21,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 @SpringBootTest
 class AppointmentApplicationTest {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.civicflow.appointment.service.AdminAuthorizationService adminAuthorization;
 
     @Autowired private MockMvc mockMvc;
     @MockitoBean private StockPreheatService stockPreheatService;

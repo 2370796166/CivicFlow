@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ElButton } from 'element-plus/es/components/button/index'
+import 'element-plus/es/components/button/style/css.mjs'
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'

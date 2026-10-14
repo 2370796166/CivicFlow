@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import NotificationsView from './NotificationsView.vue'
 
 const list = vi.fn()
-vi.mock('element-plus', () => ({ ElMessage: { error: vi.fn(), success: vi.fn() } }))
+vi.mock('element-plus/es/components/message/index', () => ({ ElMessage: { error: vi.fn(), success: vi.fn() } }))
+vi.mock('element-plus/es/components/message-box/index', () => ({ ElMessage: { error: vi.fn(), success: vi.fn() } }))
 const preference = vi.fn()
 const read = vi.fn()
 const savePreference = vi.fn()

@@ -1,6 +1,26 @@
 <script setup lang="ts">
+import { ElButton } from 'element-plus/es/components/button/index'
+import 'element-plus/es/components/button/style/css.mjs'
+import { ElCheckbox } from 'element-plus/es/components/checkbox/index'
+import 'element-plus/es/components/checkbox/style/css.mjs'
+import { ElCheckboxGroup } from 'element-plus/es/components/checkbox/index'
+import { ElDialog } from 'element-plus/es/components/dialog/index'
+import 'element-plus/es/components/dialog/style/css.mjs'
+import { ElInput } from 'element-plus/es/components/input/index'
+import 'element-plus/es/components/input/style/css.mjs'
+import { ElOption } from 'element-plus/es/components/select/index'
+import 'element-plus/es/components/select/style/css.mjs'
+import { ElPagination } from 'element-plus/es/components/pagination/index'
+import 'element-plus/es/components/pagination/style/css.mjs'
+import { ElSelect } from 'element-plus/es/components/select/index'
+import { ElTable } from 'element-plus/es/components/table/index'
+import 'element-plus/es/components/table/style/css.mjs'
+import { ElTableColumn as TableColumn } from 'element-plus/es/components/table/index'
+import 'element-plus/es/components/message/style/css.mjs'
+import 'element-plus/es/components/message-box/style/css.mjs'
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { adminApi } from '@/api/admin'
 import StatePanel from '@/components/StatePanel.vue'
 import type { AdminUser } from '@/types/admin'
@@ -64,6 +84,7 @@ async function saveRoles() {
   finally { busy.value = false }
 }
 onMounted(() => { void load() })
+const ElTableColumn = TableColumn<AdminUser>
 </script>
 
 <template>

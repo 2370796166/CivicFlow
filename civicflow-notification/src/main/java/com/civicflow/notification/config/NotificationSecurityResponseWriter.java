@@ -44,11 +44,11 @@ public class NotificationSecurityResponseWriter
         write(request, response, HttpServletResponse.SC_FORBIDDEN, NotificationErrorCode.FORBIDDEN);
     }
 
-    private void write(
+    public void write(
             HttpServletRequest request,
             HttpServletResponse response,
             int status,
-            NotificationErrorCode code)
+            com.civicflow.common.api.GlobalErrorCode code)
             throws IOException {
         String requestId = NotificationRequestIdFilter.current(request);
         response.setStatus(status);

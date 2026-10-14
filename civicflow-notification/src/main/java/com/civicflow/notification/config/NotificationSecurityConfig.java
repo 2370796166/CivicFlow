@@ -1,5 +1,6 @@
 package com.civicflow.notification.config;
 
+import com.civicflow.notification.service.AdminAuthorizationService;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -21,15 +22,22 @@ import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
 @EnableMethodSecurity
 public class NotificationSecurityConfig {
     @Bean
-    SecurityFilterChain security(HttpSecurity http, NotificationSecurityResponseWriter writer)
+    SecurityFilterChain security(
+            HttpSecurity http,
+            NotificationSecurityResponseWriter writer,
+            AdminAuthorizationService adminAuthorization)
             throws Exception {
-        return http.csrf(csrf -> csrf.disable())
+        return http.addFilterAfter(
+                        new AdminAuthorizationFilter(adminAuthorization, writer),
+                        BearerTokenAuthenticationFilter.class)
+                .csrf(csrf -> csrf.disable())
                 .cors(Customizer.withDefaults())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(
@@ -39,6 +47,8 @@ public class NotificationSecurityConfig {
                                                 "/actuator/health/**",
                                                 "/actuator/info")
                                         .permitAll()
+                                        .requestMatchers("/api/v1/admin/**")
+                                        .hasRole("ADMIN")
                                         .anyRequest()
                                         .authenticated())
                 .oauth2ResourceServer(

@@ -1,7 +1,12 @@
 <script setup lang="ts">
+import { ElButton } from 'element-plus/es/components/button/index'
+import 'element-plus/es/components/button/style/css.mjs'
+import { ElTag } from 'element-plus/es/components/tag/index'
+import 'element-plus/es/components/tag/style/css.mjs'
+import 'element-plus/es/components/message/style/css.mjs'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import QRCode from 'qrcode'
 import StatePanel from '@/components/StatePanel.vue'
 import { userApi } from '@/api/user'

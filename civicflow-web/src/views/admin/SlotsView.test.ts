@@ -7,7 +7,8 @@ const batchSlots = vi.fn()
 const createSlot = vi.fn()
 const confirm = vi.fn()
 vi.mock('@/api/admin', () => ({ adminApi: { slots: (...args: unknown[]) => slots(...args), batchSlots: (...args: unknown[]) => batchSlots(...args), createSlot: (...args: unknown[]) => createSlot(...args) } }))
-vi.mock('element-plus', () => ({ ElMessageBox: { confirm: (...args: unknown[]) => confirm(...args) }, ElMessage: { error: vi.fn() } }))
+vi.mock('element-plus/es/components/message/index', () => ({ ElMessageBox: { confirm: (...args: unknown[]) => confirm(...args) }, ElMessage: { error: vi.fn() } }))
+vi.mock('element-plus/es/components/message-box/index', () => ({ ElMessageBox: { confirm: (...args: unknown[]) => confirm(...args) }, ElMessage: { error: vi.fn() } }))
 
 const outletId = '2106005880956557825', itemId = '2106005882233079006'
 const stubs = {

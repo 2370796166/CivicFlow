@@ -4,7 +4,8 @@ import ReconciliationView from './ReconciliationView.vue'
 const mocks = vi.hoisted(() => ({ reconcile: vi.fn(), slots: vi.fn(), slot: vi.fn(), reconciliations: vi.fn(), reconciliation: vi.fn(), confirm: vi.fn() }))
 vi.mock('@/api/admin', () => ({ adminApi: mocks }))
 vi.mock('vue-router', () => ({ useRoute: () => ({ query: {} }) }))
-vi.mock('element-plus', () => ({ ElMessageBox: { confirm: mocks.confirm }, ElMessage: { success: vi.fn() } }))
+vi.mock('element-plus/es/components/message/index', () => ({ ElMessageBox: { confirm: mocks.confirm }, ElMessage: { success: vi.fn() } }))
+vi.mock('element-plus/es/components/message-box/index', () => ({ ElMessageBox: { confirm: mocks.confirm }, ElMessage: { success: vi.fn() } }))
 const stubs = { RouterLink: { template: '<a><slot /></a>' }, AdminPager: true, StatePanel: true, ElButton: { props: ['disabled'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' } }
 const report = { runId: '901', slotId: '123', expected: 8, actual: 10, diff: 2, configuredTotal: 10, persistedConsumed: 2, pendingReserved: 0, successfulCompensations: 0, pendingCompensations: 0, classification: 'REDIS_STOCK_MISMATCH', detectedAt: '2026-10-01T00:00:00Z', autoRepairable: true, repairStatus: 'MANUAL_REQUIRED' }
 const button = (wrapper: ReturnType<typeof mount>, name: string) => wrapper.findAll('button').find(item => item.text() === name)!

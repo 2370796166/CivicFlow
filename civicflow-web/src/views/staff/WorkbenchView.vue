@@ -1,6 +1,11 @@
 <script setup lang="ts">
+import { ElButton } from 'element-plus/es/components/button/index'
+import 'element-plus/es/components/button/style/css.mjs'
+import 'element-plus/es/components/message/style/css.mjs'
+import 'element-plus/es/components/message-box/style/css.mjs'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { staffApi } from '@/api/staff'
 import StatePanel from '@/components/StatePanel.vue'
 import type { ApiError } from '@/types/api'

@@ -1,7 +1,12 @@
 <script setup lang="ts">
+import { ElButton } from 'element-plus/es/components/button/index'
+import 'element-plus/es/components/button/style/css.mjs'
+import { ElInput } from 'element-plus/es/components/input/index'
+import 'element-plus/es/components/input/style/css.mjs'
+import 'element-plus/es/components/message/style/css.mjs'
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { useAuthStore } from '@/stores/auth'
 import { allowedPortals, firstPortal } from '@/router'
 import { safeRedirect } from '@/utils/redirect'

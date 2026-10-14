@@ -35,6 +35,9 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 @SpringBootTest
 class AdminQueryIntegrationTest {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.civicflow.appointment.service.AdminAuthorizationService adminAuthorization;
+
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate db;
     @Autowired AppointmentOrderMapper orders;

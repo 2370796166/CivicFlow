@@ -17,7 +17,9 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: civicflow-web/package-lock.json
+          cache-dependency-path: |
+            civicflow-web/package-lock.json
+            civicflow-miniapp/package-lock.json
       - name: Backend, migrations and isolated integration tests
         run: mvn -B verify
       - name: Frontend
@@ -28,6 +30,12 @@ jobs:
           npm run typecheck
           npm run test
           npm run build
+      - name: Miniapp checks and WeChat target build
+        working-directory: civicflow-miniapp
+        run: |
+          npm ci --no-audit --no-fund
+          npm run check
+          echo "Real backend integration requires CIVICFLOW_MINI_FIXTURE; simulator/device acceptance is a separate release gate."
       - uses: actions/upload-artifact@v4
         if: always()
         with:

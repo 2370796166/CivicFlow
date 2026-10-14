@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { ElButton } from 'element-plus/es/components/button/index'
+import 'element-plus/es/components/button/style/css.mjs'
+import { ElDrawer } from 'element-plus/es/components/drawer/index'
+import 'element-plus/es/components/drawer/style/css.mjs'
 import { onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { adminApi } from '@/api/admin'

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.civicflow.appointment.mapper.OutboxEventMapper">
+    <update id="claimNotification">
+        UPDATE outbox_event SET status='PUBLISHING',attempts=attempts+1,updated_at=CURRENT_TIMESTAMP(3)
+        WHERE id=#{id} AND attempts=#{attempts} AND event_type LIKE 'appointment.notification.%'
+        AND ((status IN ('PENDING','FAILED') AND next_attempt_at&lt;=CURRENT_TIMESTAMP(3))
+            OR (status='PUBLISHING' AND updated_at&lt;DATE_SUB(CURRENT_TIMESTAMP(3),INTERVAL 30 SECOND)))
+    </update>
+    <update id="finishNotification">
+        UPDATE outbox_event SET status=#{status},published_at=#{publishedAt},last_error_code=#{error},
+            next_attempt_at=DATE_ADD(CURRENT_TIMESTAMP(3),INTERVAL 30 SECOND),updated_at=CURRENT_TIMESTAMP(3)
+        WHERE id=#{id} AND attempts=#{attempts} AND status='PUBLISHING'
+            AND event_type LIKE 'appointment.notification.%'
+    </update>
+</mapper>

@@ -49,6 +49,9 @@ import org.testcontainers.utility.DockerImageName;
 @SpringBootTest
 @AutoConfigureMockMvc
 class StockReconciliationIntegrationTest {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.civicflow.appointment.service.AdminAuthorizationService adminAuthorization;
+
     private static final long SLOT_ID = 73001;
     private static final long ITEM_ID = 73002;
     private static final ZoneId SHANGHAI = ZoneId.of("Asia/Shanghai");

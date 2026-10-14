@@ -4,7 +4,8 @@ import WindowStaffDialog from './WindowStaffDialog.vue'
 
 const windowStaff = vi.fn(), bind = vi.fn(), confirm = vi.fn()
 vi.mock('@/api/admin', () => ({ adminApi: { windowStaff: (...args: unknown[]) => windowStaff(...args), bindWindowStaff: (...args: unknown[]) => bind(...args), users: vi.fn(async () => ({ items: [{ id: '30', username: 'staff', displayName: '张老师', status: 'ENABLED', roles: ['STAFF'] }], total: 1 })) } }))
-vi.mock('element-plus', () => ({ ElMessageBox: { confirm: (...args: unknown[]) => confirm(...args) } }))
+vi.mock('element-plus/es/components/message/index', () => ({ ElMessageBox: { confirm: (...args: unknown[]) => confirm(...args) } }))
+vi.mock('element-plus/es/components/message-box/index', () => ({ ElMessageBox: { confirm: (...args: unknown[]) => confirm(...args) } }))
 const window = { id: '3', outletId: '2', name: '一号窗口', code: 'W1', status: 'ENABLED' as const, version: 0 }
 const stubs = { ElDialog: { props: ['modelValue'], template: '<div v-if="modelValue"><slot /></div>' }, ElInput: true, ElCheckboxGroup: { template: '<div><slot /></div>' }, ElCheckbox: { template: '<span><slot /></span>' }, ElPagination: true, ElButton: { props: ['disabled', 'loading'], template: '<button :disabled="disabled || loading" @click="$emit(\'click\')"><slot /></button>' } }
 const wrappers: ReturnType<typeof mount>[] = []

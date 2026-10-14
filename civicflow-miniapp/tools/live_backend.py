@@ -67,6 +67,7 @@ def main():
              'RABBITMQ_MANAGEMENT_PORT': '25674', 'NACOS_PORT': '18848', 'NACOS_GRPC_PORT': '19848'}
     for port in [15173, *dev.SERVICES.values(), *map(int, ports.values())]:
         with socket.socket() as probe:
+            probe.settimeout(1)
             if probe.connect_ex(('127.0.0.1', port)) == 0:
                 raise RuntimeError(f'Port {port} occupied; no existing process changed')
     values = dev.read_env(ROOT / 'deploy/compose/.env.example')
@@ -181,6 +182,41 @@ def main():
             except requests.RequestException: pass
             time.sleep(1)
         else: raise RuntimeError('Web startup timed out')
+        # Optional full three-role Web regression against the same isolated services.
+        # Use a separate synthetic citizen so the miniapp user's flow remains independent.
+        if os.environ.get('CIVICFLOW_WEB_E2E') == '1':
+            web_item = api('POST', '/admin/items', admin, {'code': RUN + '-web', 'name': '网页合成办理事项',
+                           'defaultDurationMinutes': 15}, RUN + '-web-item')
+            current_window = api('GET', '/admin/windows/' + window['id'], admin)
+            api('PUT', '/admin/windows/' + window['id'] + '/items', admin,
+                {'itemIds': [item['id'], web_item['id']], 'version': current_window['version']}, RUN + '-web-bind')
+            web_release = datetime.now(timezone.utc) + timedelta(seconds=5)
+            web_slot = api('POST', '/admin/slots', admin, {'outletId': outlet['id'], 'itemId': web_item['id'],
+                'serviceDate': slot['serviceDate'], 'startTime': slot['startTime'], 'endTime': slot['endTime'],
+                'totalQuota': 5, 'releaseAt': utc(web_release), 'checkInStart': utc(now - timedelta(minutes=1)),
+                'checkInEnd': utc(end), 'status': 'SCHEDULED'}, RUN + '-web-slot')
+            api('POST', '/admin/stock/slots/' + web_slot['id'] + '/preheat', admin)
+            time.sleep(max(0, (web_release - datetime.now(timezone.utc)).total_seconds()) + 1)
+            api('PATCH', '/admin/slots/' + web_slot['id'] + '/status', admin,
+                {'status': 'OPEN', 'version': web_slot['version']}, RUN + '-web-slot-open')
+            web_user = RUN + '-web-user'
+            mysql(f"INSERT INTO civicflow_auth.sys_user(id,username,password_hash,display_name,status,token_version,version,deleted) VALUES ({base+5},'{web_user}','{digest}','网页合成测试','ENABLED',0,0,0); INSERT INTO civicflow_auth.sys_user_role(id,user_id,role_id,deleted) VALUES ({base+5},{base+5},1,0);")
+            seed = {'baseUrl': 'http://127.0.0.1:15173', 'admin': users['admin']['name'],
+                    'user': web_user, 'staff': users['staff']['name'], 'password': password,
+                    'outletId': outlet['id'], 'outletName': outlet['name'], 'itemId': web_item['id'], 'itemName': web_item['name'],
+                    'windowId': window['id'], 'windowName': window['name'], 'serviceDate': slot['serviceDate'],
+                    'screenshotDir': str(LOCAL).replace('\\', '/')}
+            result = subprocess.run(['node', 'e2e/live-flow.mjs'], input=json.dumps(seed),
+                                    cwd=ROOT / 'civicflow-web', env=environment,
+                                    capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=240)
+            (LOCAL / 'web-e2e.log').write_text(result.stdout + result.stderr, encoding='utf-8')
+            if result.returncode: raise RuntimeError('Web three-role E2E failed; see web-e2e.log')
+            report = json.loads(result.stdout.strip().splitlines()[-1])
+            staff_token = api('POST', '/auth/login', body={'loginName': users['staff']['name'], 'password': password})['accessToken']
+            session = api('GET', '/staff/work-sessions/current?windowId=' + window['id'], staff_token)['session']
+            api('DELETE', '/staff/work-sessions/' + report['sessionId'], staff_token,
+                {'version': session['version']}, RUN + '-web-end')
+            print('WEB THREE-ROLE CLOSED LOOP PASSED', flush=True)
         print('Synthetic data ready; running real miniapp request layer', flush=True)
         result = subprocess.run(['npm.cmd' if os.name == 'nt' else 'npm', 'test', '--', 'tests/live.integration.test.ts'], cwd=MINI,
                                 env={**environment, 'CIVICFLOW_MINI_FIXTURE': str(fixture)}, capture_output=True, text=True, encoding='utf-8', errors='replace')

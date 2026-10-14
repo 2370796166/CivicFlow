@@ -1,5 +1,6 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import 'element-plus/es/components/message/style/css.mjs'
 import { pinia } from '@/stores/pinia'
 import { useAuthStore } from '@/stores/auth'
 import type { ApiError, ApiResponse } from '@/types/api'

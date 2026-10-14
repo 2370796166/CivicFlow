@@ -1,6 +1,26 @@
 <script setup lang="ts">
+import { ElButton } from 'element-plus/es/components/button/index'
+import 'element-plus/es/components/button/style/css.mjs'
+import { ElCheckbox } from 'element-plus/es/components/checkbox/index'
+import 'element-plus/es/components/checkbox/style/css.mjs'
+import { ElCheckboxGroup } from 'element-plus/es/components/checkbox/index'
+import { ElDialog } from 'element-plus/es/components/dialog/index'
+import 'element-plus/es/components/dialog/style/css.mjs'
+import { ElInput } from 'element-plus/es/components/input/index'
+import 'element-plus/es/components/input/style/css.mjs'
+import { ElOption } from 'element-plus/es/components/select/index'
+import 'element-plus/es/components/select/style/css.mjs'
+import { ElPagination } from 'element-plus/es/components/pagination/index'
+import 'element-plus/es/components/pagination/style/css.mjs'
+import { ElSelect } from 'element-plus/es/components/select/index'
+import { ElTable } from 'element-plus/es/components/table/index'
+import 'element-plus/es/components/table/style/css.mjs'
+import { ElTableColumn as TableColumn } from 'element-plus/es/components/table/index'
+import 'element-plus/es/components/message/style/css.mjs'
+import 'element-plus/es/components/message-box/style/css.mjs'
 import { onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { adminApi } from '@/api/admin'
 import StatePanel from '@/components/StatePanel.vue'
 import AdminResourceSelect from '@/components/AdminResourceSelect.vue'
@@ -147,6 +167,7 @@ async function saveBinding() {
 watch(binding, value => { if (!value) bindingGeneration += 1 })
 watch(() => props.kind, () => { dialog.value = false; binding.value = false; staffBinding.value = false; page.value = 1; keyword.value = ''; status.value = ''; void load() })
 onMounted(() => { void load() })
+const ElTableColumn = TableColumn<AdminResource>
 </script>
 
 <template>
@@ -264,7 +285,7 @@ onMounted(() => { void load() })
           </el-button><el-button
             v-if="kind === 'windows'"
             text
-            @click="staffWindow = row; staffBinding = true"
+            @click="staffWindow = row as AdminWindow; staffBinding = true"
           >
             人员授权
           </el-button><el-button

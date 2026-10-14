@@ -47,11 +47,11 @@ public class SecurityResponseWriter implements AuthenticationEntryPoint, AccessD
                 ResourceSecurityErrorCode.FORBIDDEN);
     }
 
-    private void write(
+    public void write(
             HttpServletRequest request,
             HttpServletResponse response,
             int status,
-            ResourceSecurityErrorCode errorCode)
+            com.civicflow.common.api.GlobalErrorCode errorCode)
             throws IOException {
         response.setStatus(status);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);

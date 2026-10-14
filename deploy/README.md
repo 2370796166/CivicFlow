@@ -1,5 +1,11 @@
 # 在服务器上启动、更新项目
 
+2026-10-14 更新提示：web/gateway 增加独立入口网络，默认 `172.30.250.0/29`，web 使用 `172.30.250.2`，gateway 使用 `172.30.250.3`。若与宿主机现有网络冲突，在 `.env` 同时设置 `CIVICFLOW_INGRESS_SUBNET` 和该子网内不同的 `CIVICFLOW_INGRESS_WEB_IP`、`CIVICFLOW_INGRESS_GATEWAY_IP`；应用更新时正常重建 web/gateway 即可，业务数据卷不迁移。gateway 保持 `server.forward-headers-strategy=none`，限流代码仅信任指定的 web /32。外置代理部署需自行配置精确 `CIVICFLOW_GATEWAY_TRUSTED_PROXIES`，代理必须覆盖单值 X-Forwarded-For。
+
+管理写操作现在在线依赖 auth：停用/撤销 ADMIN/修改 tokenVersion 后旧令牌不能继续写；auth 不可用时管理写返回 503，恢复后沿用原幂等键重试。通知发布使用独立线程与 5 秒批次预算，不影响普通补偿调度。
+
+升级 appointment/queue 时先停止旧版本通知 publisher，再启动新版，避免旧版不带 attempts 校验的完成更新与新版并行；未完成 outbox 行会由新版按原租约恢复，eventId 不变。多实例管理写权限策略应在所有业务实例更新完成后验收，不把混合版本当作已完成撤权加固。
+
 这份说明用于把项目运行在 **Linux 服务器**上。第一次在自己的 Windows 电脑上体验，请按 [根 README](../README.md)操作；需要改代码或用 IDEA 调试，请看 [本机开发说明](local/README.md)。
 
 按你的情况阅读：

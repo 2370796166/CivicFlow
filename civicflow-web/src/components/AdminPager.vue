@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ElButton } from 'element-plus/es/components/button/index'
+import 'element-plus/es/components/button/style/css.mjs'
 import { computed } from 'vue'
 const props = defineProps<{ page: number; size: number; total: number; loading?: boolean }>()
 const emit = defineEmits<{ 'update:page': [value: number]; 'update:size': [value: number]; change: [] }>()

@@ -1,7 +1,12 @@
 <script setup lang="ts">
+import { ElButton } from 'element-plus/es/components/button/index'
+import 'element-plus/es/components/button/style/css.mjs'
+import 'element-plus/es/components/message/style/css.mjs'
+import 'element-plus/es/components/message-box/style/css.mjs'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { adminApi } from '@/api/admin'
 import AdminPager from '@/components/AdminPager.vue'
 import StatePanel from '@/components/StatePanel.vue'

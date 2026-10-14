@@ -1,6 +1,5 @@
 package com.civicflow.appointment.event;
 
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.civicflow.appointment.entity.AppointmentOrderEntity;
 import com.civicflow.appointment.entity.OutboxEventEntity;
 import com.civicflow.appointment.enums.AppointmentStatus;
@@ -8,13 +7,17 @@ import com.civicflow.appointment.enums.OutboxStatus;
 import com.civicflow.appointment.mapper.AppointmentOrderMapper;
 import com.civicflow.appointment.mapper.OutboxEventMapper;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
+import java.time.Clock;
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -28,19 +31,48 @@ public class AppointmentNotificationPublisher {
     private final OutboxEventMapper outbox;
     private final AppointmentOrderMapper orders;
     private final RabbitTemplate rabbit;
+    private final Clock clock;
+    private final Duration budget;
+    private final LongSupplier ticker;
+
+    @Autowired
+    public AppointmentNotificationPublisher(
+            OutboxEventMapper outbox,
+            AppointmentOrderMapper orders,
+            RabbitTemplate rabbit,
+            Clock clock,
+            @Value("${civicflow.appointment.notification-batch-budget:PT5S}") Duration budget) {
+        this(outbox, orders, rabbit, clock, budget, System::nanoTime);
+    }
 
     public AppointmentNotificationPublisher(
-            OutboxEventMapper outbox, AppointmentOrderMapper orders, RabbitTemplate rabbit) {
+            OutboxEventMapper outbox,
+            AppointmentOrderMapper orders,
+            RabbitTemplate rabbit,
+            Clock clock,
+            Duration budget,
+            LongSupplier ticker) {
+        if (budget.isNegative() || budget.isZero())
+            throw new IllegalArgumentException("Publish budget must be positive");
         this.outbox = outbox;
         this.orders = orders;
         this.rabbit = rabbit;
+        this.clock = clock;
+        this.budget = budget;
+        this.ticker = ticker;
     }
 
-    @Scheduled(fixedDelayString = "${civicflow.appointment.notification-publish-delay-ms:1000}")
+    @Scheduled(
+            scheduler = "notificationScheduler",
+            fixedDelayString = "${civicflow.appointment.notification-publish-delay-ms:1000}")
     public void publish() {
+        long started = ticker.getAsLong();
         for (OutboxEventEntity candidate : outbox.selectDueNotification(50)) {
-            if (outbox.claim(candidate.getId()) != 1) continue;
-            OutboxEventEntity entry = outbox.selectById(candidate.getId());
+            if (ticker.getAsLong() - started >= budget.toNanos()
+                    || Thread.currentThread().isInterrupted()) break;
+            if (outbox.claimNotification(candidate.getId(), candidate.getAttempts()) != 1) continue;
+            OutboxEventEntity entry = candidate;
+            entry.setAttempts(candidate.getAttempts() + 1);
             if ("appointment.notification.reminder".equals(entry.getEventType())) {
                 AppointmentOrderEntity order =
                         orders.selectById(Long.parseLong(entry.getAggregateId()));
@@ -57,7 +89,8 @@ public class AppointmentNotificationPublisher {
                         new Message(
                                 entry.getPayloadJson().getBytes(StandardCharsets.UTF_8),
                                 properties);
-                CorrelationData correlation = new CorrelationData(entry.getEventId());
+                CorrelationData correlation =
+                        new CorrelationData(entry.getEventId() + ":" + entry.getAttempts());
                 rabbit.send(
                         AppointmentMessaging.APPOINTMENT_EXCHANGE,
                         entry.getRoutingKey(),
@@ -69,6 +102,10 @@ public class AppointmentNotificationPublisher {
                 } else {
                     update(entry, OutboxStatus.FAILED, "PUBLISH_REJECTED");
                 }
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                update(entry, OutboxStatus.FAILED, "PUBLISH_UNKNOWN");
+                break;
             } catch (Exception exception) {
                 update(entry, OutboxStatus.FAILED, "PUBLISH_UNKNOWN");
             }
@@ -76,15 +113,16 @@ public class AppointmentNotificationPublisher {
     }
 
     private void update(OutboxEventEntity entry, OutboxStatus status, String code) {
-        OutboxEventEntity change = new OutboxEventEntity();
-        change.setStatus(status);
-        change.setLastErrorCode(code);
-        change.setPublishedAt(status == OutboxStatus.PUBLISHED ? Instant.now() : null);
-        change.setNextAttemptAt(Instant.now().plusSeconds(30));
-        outbox.update(
-                change,
-                Wrappers.<OutboxEventEntity>lambdaUpdate()
-                        .eq(OutboxEventEntity::getId, entry.getId())
-                        .eq(OutboxEventEntity::getStatus, OutboxStatus.PUBLISHING));
+        int changed =
+                outbox.finishNotification(
+                        entry.getId(),
+                        entry.getAttempts(),
+                        status.name(),
+                        status == OutboxStatus.PUBLISHED ? clock.instant() : null,
+                        status == OutboxStatus.PUBLISHED ? null : code);
+        if (changed == 0) {
+            // Lease takeover won; this attempt must not overwrite the newer publisher.
+            return;
+        }
     }
 }

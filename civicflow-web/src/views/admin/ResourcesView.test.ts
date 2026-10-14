@@ -5,7 +5,8 @@ const resources = vi.fn()
 const windowItems = vi.fn(), bindWindowItems = vi.fn(), confirm = vi.fn()
 const resource = vi.fn(), createResource = vi.fn(), updateResource = vi.fn()
 vi.mock('@/api/admin', () => ({ adminApi: { resources: (...args: unknown[]) => resources(...args), resource: (...args: unknown[]) => resource(...args), createResource: (...args: unknown[]) => createResource(...args), updateResource: (...args: unknown[]) => updateResource(...args), windowItems: (...args: unknown[]) => windowItems(...args), bindWindowItems: (...args: unknown[]) => bindWindowItems(...args) } }))
-vi.mock('element-plus', () => ({ ElMessage: { error: vi.fn(), success: vi.fn() }, ElMessageBox: { confirm: (...args: unknown[]) => confirm(...args) } }))
+vi.mock('element-plus/es/components/message/index', () => ({ ElMessage: { error: vi.fn(), success: vi.fn() }, ElMessageBox: { confirm: (...args: unknown[]) => confirm(...args) } }))
+vi.mock('element-plus/es/components/message-box/index', () => ({ ElMessage: { error: vi.fn(), success: vi.fn() }, ElMessageBox: { confirm: (...args: unknown[]) => confirm(...args) } }))
 const window = { id: '3', outletId: '2', code: 'W1', name: '一号窗口', status: 'ENABLED', version: 0 }
 const outletId = '2106005880956557825'
 const bindingStubs = {

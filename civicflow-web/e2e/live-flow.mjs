@@ -1,9 +1,13 @@
 // Synthetic credentials arrive on stdin only. Never enable traces or log QR tokens.
 import { chromium, expect } from '@playwright/test'
+import { existsSync } from 'node:fs'
 let input = ''
 for await (const chunk of process.stdin) input += chunk
 const seed = JSON.parse(input)
-const browser = await chromium.launch({ headless: true })
+for (const field of ['admin', 'user', 'staff', 'password', 'outletId', ...(!seed.appointmentId ? ['itemId', 'serviceDate'] : [])]) {
+  if (!seed[field]) throw new Error(`Missing E2E fixture field: ${field}`)
+}
+const browser = await chromium.launch({ headless: true, ...(!existsSync(chromium.executablePath()) ? { channel: existsSync('C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe') ? 'msedge' : 'chrome' } : {}) })
 const base = seed.baseUrl || 'http://localhost:5173'
 const steps = []
 async function login(name, destination) {
@@ -32,7 +36,7 @@ try {
   await admin.getByRole('button', { name: '搜索', exact: true }).click()
   const staffChoice = admin.locator('.el-checkbox').filter({ hasText: seed.staff })
   await expect(staffChoice.getByRole('checkbox')).toBeEnabled()
-  await staffChoice.click()
+  await staffChoice.getByRole('checkbox').check()
   await expect(staffChoice.getByRole('checkbox')).toBeChecked()
   await admin.getByRole('button', { name: '保存授权', exact: true }).click()
   const grantResponse = admin.waitForResponse(r => r.url().endsWith(`/windows/${seed.windowId}/staff`) && r.request().method() === 'PUT')

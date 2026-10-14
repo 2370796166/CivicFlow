@@ -14,6 +14,7 @@ public class GatewayProperties {
     private Jwt jwt = new Jwt();
     private Cors cors = new Cors();
     private RateLimit rateLimit = new RateLimit();
+    private List<String> trustedProxies = new ArrayList<>();
 
     @Getter
     @Setter

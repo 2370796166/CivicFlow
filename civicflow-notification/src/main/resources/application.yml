@@ -1,4 +1,11 @@
 spring:
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 1000
+            readTimeout: 3000
   application:
     name: civicflow-notification
   profiles:

@@ -1,6 +1,27 @@
 <script setup lang="ts">
+import { ElButton } from 'element-plus/es/components/button/index'
+import 'element-plus/es/components/button/style/css.mjs'
+import { ElCalendar } from 'element-plus/es/components/calendar/index'
+import 'element-plus/es/components/calendar/style/css.mjs'
+import { ElDialog } from 'element-plus/es/components/dialog/index'
+import 'element-plus/es/components/dialog/style/css.mjs'
+import { ElDropdown } from 'element-plus/es/components/dropdown/index'
+import 'element-plus/es/components/dropdown/style/css.mjs'
+import { ElDropdownItem } from 'element-plus/es/components/dropdown/index'
+import { ElDropdownMenu } from 'element-plus/es/components/dropdown/index'
+import { ElOption } from 'element-plus/es/components/select/index'
+import 'element-plus/es/components/select/style/css.mjs'
+import { ElPagination } from 'element-plus/es/components/pagination/index'
+import 'element-plus/es/components/pagination/style/css.mjs'
+import { ElSelect } from 'element-plus/es/components/select/index'
+import { ElTable } from 'element-plus/es/components/table/index'
+import 'element-plus/es/components/table/style/css.mjs'
+import { ElTableColumn as TableColumn } from 'element-plus/es/components/table/index'
+import 'element-plus/es/components/message/style/css.mjs'
+import 'element-plus/es/components/message-box/style/css.mjs'
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { adminApi } from '@/api/admin'
 import StatePanel from '@/components/StatePanel.vue'
 import AdminResourceSelect from '@/components/AdminResourceSelect.vue'
@@ -103,6 +124,7 @@ async function adjustQuota(row: AdminSlot) {
   finally { busy.value = false }
 }
 onMounted(() => { void load() })
+const ElTableColumn = TableColumn<AdminSlot>
 </script>
 
 <template>
