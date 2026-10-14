@@ -76,6 +76,9 @@ class AppointmentReservationFlowIntegrationTest {
     @MockitoBean private ReservationEventPublisher publisher;
     @MockitoBean private ReservationRedisStateService redisStateService;
 
+    @MockitoBean
+    private com.civicflow.appointment.service.SlotStockSynchronizationService synchronization;
+
     @BeforeEach
     void resetDatabaseAndDefaults() {
         jdbcTemplate.update("DELETE FROM appointment_command_idempotency");

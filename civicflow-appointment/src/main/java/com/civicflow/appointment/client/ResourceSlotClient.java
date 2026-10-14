@@ -3,6 +3,7 @@ package com.civicflow.appointment.client;
 import com.civicflow.common.api.ApiResponse;
 import java.time.Instant;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -16,7 +17,8 @@ public interface ResourceSlotClient {
     ApiResponse<java.util.List<ResourceSlotSnapshot>> getUserCandidates(
             @RequestParam("outletId") long outletId,
             @RequestParam("itemId") long itemId,
-            @RequestParam("date") java.time.LocalDate date);
+            @RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    java.time.LocalDate date);
 
     @GetMapping("/internal/v1/resource/slots/{slotId}/snapshot")
     ApiResponse<ResourceSlotSnapshot> getSnapshot(@PathVariable("slotId") long slotId);

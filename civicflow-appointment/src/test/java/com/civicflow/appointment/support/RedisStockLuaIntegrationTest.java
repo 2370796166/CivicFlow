@@ -244,6 +244,74 @@ class RedisStockLuaIntegrationTest {
         assertEquals(PreheatScriptResultCode.APPLIED, PreheatScriptResultCode.from(result.code()));
     }
 
+    @Test
+    void fullConfigurationReplayPreservesChargesAcrossVersionGapsAndStaleMessages() {
+        var first = snapshot(1010, 5, RELEASE_AT, 1);
+        initialize(first);
+        serviceAt(AFTER_RELEASE).reserve(first, 9001, "charged-before-open");
+        var current =
+                new SlotStockSnapshot(
+                        first.slotId(),
+                        first.outletId(),
+                        first.itemId(),
+                        first.serviceDate(),
+                        7,
+                        first.releaseAt(),
+                        first.closeAt(),
+                        "OPEN",
+                        4);
+        var applied =
+                repository.synchronizeConfiguration(
+                        current, AFTER_RELEASE, CLOSE_AT.plusSeconds(3600), false);
+        assertEquals(0, applied.code());
+        assertEquals(6, applied.remaining());
+        assertEquals(
+                1,
+                repository
+                        .synchronizeConfiguration(
+                                current, AFTER_RELEASE, CLOSE_AT.plusSeconds(3600), false)
+                        .code());
+        assertEquals(
+                2,
+                repository
+                        .synchronizeConfiguration(
+                                first, AFTER_RELEASE, CLOSE_AT.plusSeconds(3600), false)
+                        .code());
+        assertEquals("6", remaining(first));
+        serviceAt(AFTER_RELEASE).reserve(current, 9002, "after-open");
+        assertEquals("5", remaining(first));
+    }
+
+    @Test
+    void missedPreheatNeedsDatabaseProofAndPendingSetMustBeEmpty() {
+        var slot = snapshot(1011, 5, RELEASE_AT, 2);
+        assertEquals(
+                5,
+                repository
+                        .synchronizeConfiguration(
+                                slot, AFTER_RELEASE, CLOSE_AT.plusSeconds(3600), false)
+                        .code());
+        assertEquals(
+                0,
+                repository
+                        .synchronizeConfiguration(
+                                slot, AFTER_RELEASE, CLOSE_AT.plusSeconds(3600), true)
+                        .code());
+        assertEquals("5", remaining(slot));
+        var other = snapshot(1012, 5, RELEASE_AT, 2);
+        var keys =
+                new RedisKeyFactory("integration")
+                        .reconciliationKeys(other.itemId(), other.serviceDate(), other.slotId());
+        redisTemplate.opsForZSet().add(keys.pending(), "unresolved-reservation", 1);
+        assertEquals(
+                5,
+                repository
+                        .synchronizeConfiguration(
+                                other, AFTER_RELEASE, CLOSE_AT.plusSeconds(3600), true)
+                        .code());
+        assertEquals(null, remaining(other));
+    }
+
     private static ReservationStockService serviceAt(Instant instant) {
         return new ReservationStockServiceImpl(
                 repository, properties, Clock.fixed(instant, ZoneOffset.UTC));

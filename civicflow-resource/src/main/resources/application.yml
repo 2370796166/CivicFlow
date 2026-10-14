@@ -3,6 +3,11 @@ spring:
     name: civicflow-resource
   profiles:
     default: dev
+  rabbitmq:
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
 
 mybatis-plus:
   configuration:

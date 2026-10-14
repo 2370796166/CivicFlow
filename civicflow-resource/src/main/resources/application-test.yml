@@ -18,6 +18,7 @@ spring:
 
 civicflow:
   resource:
+    slot-publishing-enabled: false
     jwt:
       allow-test-decoder: true
     contact-protection:
@@ -25,5 +26,7 @@ civicflow:
 
 management:
   health:
+    rabbit:
+      enabled: false
     nacos:
       enabled: false

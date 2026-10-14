@@ -363,3 +363,7 @@ docker compose up -d --wait --wait-timeout 300
 `host.docker.internal` 表示运行 Docker 的电脑。以上参数只处理 Java 依赖构建下载；Docker 镜像拉取失败需检查 Docker 自身的网络与代理。没有使用代理时，按第 4 节正常启动即可。
 
 业务配置、通知接口和数据库升级细节见 [部署说明](deploy/README.md)，运行监控见 [监控说明](deploy/monitoring/README.md)。
+
+## 库存同步与前端会话保护
+
+号源状态与 Redis 库存现在通过资源消息同步；预约入口也会同步配置，防止首次请求早于消息到达。错过预热的全新号源可安全补建，已有预约历史的库存丢失继续拒绝自动恢复满额度。恢复边界、消息拓扑及本次前端会话保护见 [库存同步说明](STOCK_SYNC.md)。

@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 public class RedisStockRepository {
     private static final DefaultRedisScript<List> INIT = script("lua/init_stock.lua");
     private static final DefaultRedisScript<List> ADJUST = script("lua/adjust_stock.lua");
+    private static final DefaultRedisScript<List> SYNC = script("lua/sync_stock_configuration.lua");
     private static final DefaultRedisScript<List> RESERVE = script("lua/reserve_stock.lua");
     private static final DefaultRedisScript<List> COMPENSATE = script("lua/compensate_stock.lua");
     private static final DefaultRedisScript<List> MARK_PUBLISHED = script("lua/mark_published.lua");
@@ -62,6 +63,25 @@ public class RedisStockRepository {
                 number(values.get(2)),
                 number(values.get(3)),
                 number(values.get(4)));
+    }
+
+    public LuaResult synchronizeConfiguration(
+            SlotStockSnapshot snapshot, Instant now, Instant expiresAt, boolean unusedSlot) {
+        var keys =
+                keyFactory.reconciliationKeys(
+                        snapshot.itemId(), snapshot.serviceDate(), snapshot.slotId());
+        return execute(
+                SYNC,
+                List.of(keys.stock(), keys.pending()),
+                snapshot.slotId(),
+                snapshot.totalQuota(),
+                snapshot.status(),
+                snapshot.releaseAt().toEpochMilli(),
+                snapshot.closeAt().toEpochMilli(),
+                snapshot.configVersion(),
+                now.toEpochMilli(),
+                expiresAt.toEpochMilli(),
+                unusedSlot);
     }
 
     public LuaResult reconciliationRepair(

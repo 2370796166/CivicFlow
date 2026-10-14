@@ -4,10 +4,10 @@ import { pinia } from '@/stores/pinia'
 import { useAuthStore } from '@/stores/auth'
 import type { ApiError, ApiResponse } from '@/types/api'
 
-declare module 'axios' { interface AxiosRequestConfig { dedupe?: boolean; _retried?: boolean; suppressErrorToast?: boolean } }
+declare module 'axios' { interface AxiosRequestConfig { dedupe?: boolean; _retried?: boolean; _authGeneration?: number; suppressErrorToast?: boolean } }
 
 export const api = axios.create({ baseURL: '/api/v1', timeout: 15000 })
-let refreshFlight: Promise<void> | null = null
+let refreshFlight: { generation: number; promise: Promise<void> } | null = null
 let onUnauthorized: (() => void) | null = null
 let onForbidden: (() => void) | null = null
 const pendingGets = new Map<string, AbortController>()
@@ -19,6 +19,8 @@ function dedupeKey(config: InternalAxiosRequestConfig): string {
 
 api.interceptors.request.use((config) => {
   const auth = useAuthStore(pinia)
+  config._authGeneration ??= auth.getSessionGeneration()
+  if (config._authGeneration !== auth.getSessionGeneration()) throw new axios.CanceledError('Session changed')
   if (auth.accessToken) config.headers.Authorization = `Bearer ${auth.accessToken}`
   // Gateway replaces untrusted request IDs; its response ID is authoritative.
   config.headers['X-Request-Id'] = crypto.randomUUID()
@@ -33,23 +35,33 @@ api.interceptors.request.use((config) => {
 })
 
 api.interceptors.response.use(
-  (response) => { release(response.config); return response },
+  (response) => {
+    release(response.config)
+    const generation = response.config._authGeneration
+    if (generation !== undefined && generation !== useAuthStore(pinia).getSessionGeneration()) throw new axios.CanceledError('Session changed')
+    return response
+  },
   async (error: AxiosError<ApiResponse<unknown>>) => {
     const config = error.config
     if (config) release(config)
     if (axios.isCancel(error)) return Promise.reject(error)
     const auth = useAuthStore(pinia)
+    const generation = auth.getSessionGeneration()
+    if (config?._authGeneration !== undefined && config._authGeneration !== generation) return Promise.reject(normalize(error))
     if (error.response?.status === 401 && config && !config._retried && auth.accessToken) {
       config._retried = true
       try {
         // A different request may already have rotated the token before this 401 arrived.
         if (config.headers?.Authorization !== `Bearer ${auth.accessToken}`) return api(config)
-        refreshFlight ??= auth.refresh().finally(() => { refreshFlight = null })
-        await refreshFlight
+        if (!refreshFlight || refreshFlight.generation !== generation) {
+          const flight = { generation, promise: auth.refresh() }
+          refreshFlight = flight
+          void flight.promise.finally(() => { if (refreshFlight === flight) refreshFlight = null }).catch(() => {})
+        }
+        await refreshFlight.promise
         return api(config)
       } catch {
-        auth.clear()
-        onUnauthorized?.()
+        if (auth.getSessionGeneration() === generation) { auth.clear(); onUnauthorized?.() }
         return Promise.reject(normalize(error))
       }
     }

@@ -1,4 +1,10 @@
 spring:
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:civicflow_app}
+    password: ${RABBITMQ_PASSWORD:}
+    virtual-host: ${RABBITMQ_VHOST:civicflow}
   config:
     import: "optional:nacos:${spring.application.name}.yaml?group=${NACOS_GROUP:CIVICFLOW_GROUP}&refreshEnabled=true"
   cloud:

@@ -16,6 +16,7 @@ import com.civicflow.appointment.service.ReservationRedisStateService;
 import com.civicflow.appointment.service.ReservationStockService;
 import com.civicflow.appointment.service.ReservationWorkflowService;
 import com.civicflow.appointment.service.RetryableStockCompensationException;
+import com.civicflow.appointment.service.SlotStockSynchronizationService;
 import com.civicflow.appointment.service.StockReleaseService;
 import com.civicflow.appointment.support.Digests;
 import com.civicflow.common.api.ApiResponse;
@@ -44,6 +45,7 @@ public class ReservationWorkflowServiceImpl implements ReservationWorkflowServic
     private final ObjectMapper objectMapper;
     private final Clock clock;
     private final io.micrometer.core.instrument.MeterRegistry metrics;
+    private final SlotStockSynchronizationService synchronization;
 
     public ReservationWorkflowServiceImpl(
             AppointmentReservationRequestMapper requestMapper,
@@ -55,7 +57,8 @@ public class ReservationWorkflowServiceImpl implements ReservationWorkflowServic
             AppointmentProperties properties,
             ObjectMapper objectMapper,
             Clock clock,
-            io.micrometer.core.instrument.MeterRegistry metrics) {
+            io.micrometer.core.instrument.MeterRegistry metrics,
+            SlotStockSynchronizationService synchronization) {
         this.requestMapper = requestMapper;
         this.resourceClient = resourceClient;
         this.stockService = stockService;
@@ -66,6 +69,7 @@ public class ReservationWorkflowServiceImpl implements ReservationWorkflowServic
         this.objectMapper = objectMapper;
         this.clock = clock;
         this.metrics = metrics;
+        this.synchronization = synchronization;
     }
 
     @Override
@@ -268,6 +272,13 @@ public class ReservationWorkflowServiceImpl implements ReservationWorkflowServic
                 || snapshot.serviceDate()
                         .isAfter(today.plusDays(properties.getRules().getAdvanceDays()))) {
             throw new BusinessException(AppointmentErrorCode.SLOT_NOT_OPEN);
+        }
+        // Prepare before inserting the first request so a fast OPEN booking does not outrun MQ.
+        try {
+            synchronization.synchronizeSnapshot(snapshot);
+        } catch (org.springframework.dao.DataAccessException exception) {
+            // Preparation never debits stock. Preserve the durable CREATED-before-reserve path
+            // when Redis is unavailable; a timed-out reserve must still recover the same ID.
         }
         AppointmentReservationRequestEntity request = new AppointmentReservationRequestEntity();
         request.setReservationId(UUID.randomUUID().toString());

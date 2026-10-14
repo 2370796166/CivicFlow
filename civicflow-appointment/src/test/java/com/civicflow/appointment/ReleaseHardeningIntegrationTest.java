@@ -260,7 +260,7 @@ class ReleaseHardeningIntegrationTest {
                 json.writeValueAsString(
                         Map.of(
                                 "base",
-                                "http://host.docker.internal:" + port,
+                                "http://host.testcontainers.internal:" + port,
                                 "slotId",
                                 "" + id,
                                 "quota",
@@ -279,8 +279,12 @@ class ReleaseHardeningIntegrationTest {
                 0,
                 20,
                 TimeUnit.MILLISECONDS);
+        // Use Testcontainers' cross-platform host port tunnel instead of Docker Desktop's
+        // host.docker.internal NAT, which can refuse connections during the 1000-VU burst.
+        org.testcontainers.Testcontainers.exposeHostPorts(port);
         try (var k6 =
                 new GenericContainer<>("grafana/k6:0.52.0")
+                        .withAccessToHost(true)
                         .withCreateContainerCmdModifier(
                                 c -> {
                                     c.withEntrypoint("/bin/sh");

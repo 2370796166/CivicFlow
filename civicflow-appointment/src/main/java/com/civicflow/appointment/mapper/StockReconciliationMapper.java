@@ -7,6 +7,10 @@ import lombok.Setter;
 import org.apache.ibatis.annotations.Param;
 
 public interface StockReconciliationMapper {
+    @org.apache.ibatis.annotations.Select(
+            "SELECT (SELECT COUNT(*) FROM appointment_reservation_request WHERE slot_id=#{slotId}) + (SELECT COUNT(*) FROM appointment_order WHERE slot_id=#{slotId}) + (SELECT COUNT(*) FROM stock_release_record WHERE slot_id=#{slotId})")
+    long countSlotHistory(@Param("slotId") long slotId);
+
     Facts selectFacts(@Param("slotId") long slotId, @Param("stableBefore") Instant stableBefore);
 
     List<ActiveReservation> selectActiveReservations(

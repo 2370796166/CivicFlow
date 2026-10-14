@@ -1,4 +1,12 @@
 spring:
+  rabbitmq:
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT:5671}
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+    virtual-host: ${RABBITMQ_VHOST:civicflow}
+    ssl:
+      enabled: true
   config:
     import: "optional:nacos:${spring.application.name}.yaml?group=${NACOS_GROUP}"
   cloud:
@@ -27,4 +35,4 @@ management:
     health:
       group:
         readiness:
-          include: readinessState,db
+          include: readinessState,db,rabbit
