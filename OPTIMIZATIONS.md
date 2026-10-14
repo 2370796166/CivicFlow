@@ -12,6 +12,7 @@
 - **依赖**：resource/notification 新增 Spring OpenFeign/LoadBalancer，用于受保护 API 调用与服务发现，由既有 Cloud BOM 管理，Spring 官方维护，Apache-2.0；无独立版本号。
 - **Web**：Element Plus 按页面局部导入组件/样式，布局懒加载，表格行类型明确。入口主 JS 为 114.89 kB（gzip 43.27 kB），基线为 402.85 kB（gzip 138.68 kB），约减少 71%；不是全部首屏资源口径。
 - **CI**：缓存 Web/小程序两份锁文件，小程序执行 `npm ci` 和 `npm run check`。真实后端联调需要 fixture，微信模拟器/真机是独立验收，不把构建当作微信验收。
+- **跨平台压测连接**：k6 通过 `exposeHostPorts`/`withAccessToHost` 访问测试 JVM 的随机端口，保留 Testcontainers 自动写入的 `host.testcontainers.internal` 映射。不得用 `withExtraHosts` 覆盖该映射；原 Linux 专用 `host.docker.internal` 配置曾导致 GitHub Actions DNS 失败，现已移除。1000 用户及两组 100 用户的门禁和业务断言保持不变。
 
 ## 本机验证
 

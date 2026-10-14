@@ -285,17 +285,9 @@ class ReleaseHardeningIntegrationTest {
         try (var k6 =
                 new GenericContainer<>("grafana/k6:0.52.0")
                         .withAccessToHost(true)
-                        .withCreateContainerCmdModifier(
-                                c -> {
-                                    c.withEntrypoint("/bin/sh");
-                                    if (System.getProperty("os.name")
-                                            .toLowerCase(Locale.ROOT)
-                                            .contains("linux")) {
-                                        c.getHostConfig()
-                                                .withExtraHosts(
-                                                        "host.docker.internal:host-gateway");
-                                    }
-                                })
+                        // Testcontainers installs host.testcontainers.internal in ExtraHosts.
+                        // Replacing ExtraHosts here removes the tunnel alias on Linux CI.
+                        .withCreateContainerCmdModifier(c -> c.withEntrypoint("/bin/sh"))
                         .withCommand("-c", "sleep 300")
                         .withCopyFileToContainer(
                                 MountableFile.forHostPath(fixture, 0644), "/tmp/fixture.json")
